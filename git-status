@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+dir="$1"
+
+if [ -z "$dir" ]; then
+  dir="$(pwd)"
+else
+  if [ ! -e "$dir" ]; then
+    echo "'${dir}' does not exist"
+    exit
+  fi
+fi
+
+if [[ $dir != */ ]]; then
+  dir="$dir/*"
+else
+  dir="$dir*"
+fi
+
+for d in $dir; do
+  [ -d "${d}" ] || continue
+
+  echo $(basename $d)
+
+  if [ ! -d "$d/.git" ]; then
+    echo -en "\033[0;31m" # display red
+    echo "Not a git repository"
+    echo -en "\033[0m"
+    exit 1
+  fi
+
+  modified=0
+
+  cd $d
+
+  if [ $(git status | grep modified -c) -ne 0 ]; then
+    modified=1
+    echo -en "\033[0;31m" # display red
+    echo "Modified files"
+    echo -en "\033[0m"
+  fi
+
+  if [ $(git status | grep Untracked -c) -ne 0 ]; then
+    modified=1
+    echo -en "\033[0;31m" # display red
+    echo "Untracked files"
+    echo -en "\033[0m"
+  fi
+
+  if [ $(git status | grep ahead -c) -ne 0 ]; then
+    modified=1
+    echo -en "\033[0;33m" # display yellow
+    echo "Use \"git push\" to publish your local commits"
+    echo -en "\033[0m"
+  fi
+
+  if [ $modified -eq 0 ]; then
+    echo -en "\033[0;32m" # display green
+    echo "Working tree clean"
+    echo -en "\033[0m"
+  fi
+
+  cd ../
+done

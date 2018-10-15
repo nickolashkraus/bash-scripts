@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+dir="$1"
+
+if [ -z "$dir" ]; then
+  dir="$(pwd)"
+else
+  if [ ! -e "$dir" ]; then
+    echo "'${dir}' does not exist"
+    exit
+  fi
+fi
+
+if [[ $dir != */ ]]; then
+  dir="$dir/*"
+else
+  dir="$dir*"
+fi
+
+for d in $dir; do
+  [ -d "${d}" ] || continue
+
+  echo $(basename $d)
+
+  if [ ! -d "$d/.git" ]; then
+    echo -en "\033[0;31m" # display red
+    echo "Not a git repository"
+    echo -en "\033[0m"
+    exit 1
+  fi
+
+  aborting=0
+  tracking=0
+  updating=0
+
+  cd $d
+
+  output=$(git pull 2>&1)
+
+  if [ $(echo $output | grep -i aborting -c) -ne 0 ]; then
+    aborting=1
+    echo -en "\033[0;31m" # display red
+    echo "Aborting"
+    echo -en "\033[0m"
+  fi
+
+  if [ $(echo $output | grep -i tracking -c) -ne 0 ]; then
+    tracking=1
+    echo -en "\033[0;33m" # display yellow
+    echo "There is no tracking information for the current branch."
+    git branch | grep "*"
+    echo -en "\033[0m"
+  fi
+
+  if [ $(echo $output | grep -i Updating -c) -ne 0 ]; then
+    updating=1
+    echo -en "\033[0;33m" # display yellow
+    echo "Updating"
+    echo -en "\033[0m"
+  fi
+
+  if [ $aborting -eq 0 -a $updating -eq 0 -a $tracking -eq 0 ]; then
+    echo -en "\033[0;32m" # display green
+    echo "Already up-to-date."
+    echo -en "\033[0m"
+  fi
+
+  cd ../
+done
