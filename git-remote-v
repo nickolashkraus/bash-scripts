@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+dir="$1"
+
+if [ -z "$dir" ]; then
+  dir="$(pwd)"
+else
+  if [ ! -e "$dir" ]; then
+    echo "'${dir}' does not exist"
+    exit
+  fi
+fi
+
+if [[ $dir != */ ]]; then
+  dir="$dir/*"
+else
+  dir="$dir*"
+fi
+
+for d in $dir; do
+  [ -d "${d}" ] || continue
+
+  echo $(basename $d)
+
+  if [ ! -d "$d/.git" ]; then
+    echo -en "\033[0;31m" # display red
+    echo "Not a git repository"
+    echo -en "\033[0m"
+    exit 1
+  fi
+
+  cd $d
+
+  echo -en "\033[0;32m" # display green
+  git remote -v
+  echo -en "\033[0m"
+
+  cd ../
+done
