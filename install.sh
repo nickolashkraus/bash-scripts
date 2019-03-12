@@ -11,7 +11,6 @@ else
 fi
 
 for f in $dir; do
-  [ ! -d "${f}" ] && [ -x "${f}" ] || continue
-  ln -s $f $HOME/bin/
+  [ ! -d "${f}" ] && [ -x "${f}" ] && [ "{$f}" != "install.sh" ] || continue
+  ln -s $f $HOME/bin/ 2> /dev/null
 done
-
