@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+file="$1"
+
+if [ ! -e "$file" ]; then
+  echo "'${file}' does not exist."
+  exit
+fi
+
+filename=$(echo $file | cut -f 1 -d '.')
+
+python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < $filename.json > $filename.yaml

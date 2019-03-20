@@ -6,7 +6,7 @@ if [ -z "$dir" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "$dir" ]; then
-    echo "'${dir}' does not exist"
+    echo "'${dir}' does not exist."
     exit
   fi
 fi
