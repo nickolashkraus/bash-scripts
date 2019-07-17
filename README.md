@@ -1,4 +1,8 @@
-# bash-scripts
+# Bash Scripts
+
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/NickolasHKraus/bash-scripts/blob/master/LICENSE)
+
+A collection of helpful bash scripts.
 
 ## Installation
 
