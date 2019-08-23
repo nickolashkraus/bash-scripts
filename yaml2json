@@ -14,9 +14,9 @@ import sys;
 import json;
 import yaml;
 
-yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)
+json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)
 
 END
 )
 
-python -c "$PYTHON" < $filename.json > $filename.yaml
+python -c "$PYTHON" < $filename.yaml > $filename.json
