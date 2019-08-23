@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+(ssh-agent -s && ssh-add ~/.ssh/id_rsa) >/dev/null 2>&1
+
+SSH_URLS=($(curl -s https://api.github.com/users/NickolasHKraus/repos | jq '.[].ssh_url' | tr -d \"))
+
+for ssh_url in "${SSH_URLS[@]}"; do
+
+  echo Cloning "${ssh_url}"..
+
+  output=$(git clone "${ssh_url}" 2>&1)
+
+  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
+    echo -en "\033[0;31m" # display red
+    echo "Repository already exists."
+    echo -en "\033[0m"
+  fi
+
+done
