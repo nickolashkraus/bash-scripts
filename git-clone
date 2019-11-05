@@ -2,6 +2,15 @@
 
 (ssh-agent -s && ssh-add ~/.ssh/id_rsa) >/dev/null 2>&1
 
+ssh git@github.com >/dev/null 2>&1
+
+if [ $? -eq 255 ]; then
+	echo -en "\033[0;31m" # display red
+	echo "Permission denied (publickey)."
+	echo -en "\033[0m"
+  exit 1
+fi
+
 SSH_URLS=($(curl -s https://api.github.com/users/NickolasHKraus/repos | jq '.[].ssh_url' | tr -d \"))
 
 for ssh_url in "${SSH_URLS[@]}"; do
