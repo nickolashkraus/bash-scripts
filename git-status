@@ -26,7 +26,7 @@ for d in $dir; do
     echo -en "\033[0;31m" # display red
     echo "Not a git repository"
     echo -en "\033[0m"
-    exit 1
+    continue
   fi
 
   modified=0
