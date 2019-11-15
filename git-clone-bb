@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#
+# Usage: git-clone-bb <project-key> <credentials>
+#
+# Description: Clones repositories for the specified project.
+#
+# Example:
+#
+#     git-clone-bb OPS cm9vdDp0b29yCg==
+
+if [ -z $1 ]; then
+	echo -en "\033[0;31m" # display red
+	echo "Specify a project key."
+	echo -en "\033[0m"
+  exit 1
+fi
+
+if [ -z $2 ]; then
+	echo -en "\033[0;31m" # display red
+	echo "Provide basic auth credentials."
+	echo -en "\033[0m"
+  exit 1
+fi
+
+RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/DATA/repos"
+
+SSH_URLS=($(curl -s -X GET \
+  -H "Authorization: Basic$2" \
+  -H "Content-Type: application/json" $RESOURCE | \
+  jq '.values[].links.clone[] | select(.name == "ssh") | .href' \
+  | tr -d \"))
+
+for ssh_url in "${SSH_URLS[@]}"; do
+
+  echo Cloning "${ssh_url}"..
+
+  output=$(git clone "${ssh_url}" 2>&1)
+
+  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
+    echo -en "\033[0;31m"
+    echo "Repository already exists."
+    echo -en "\033[0m"
+  fi
+
+done
