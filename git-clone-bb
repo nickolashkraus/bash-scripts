@@ -9,20 +9,20 @@
 #     git-clone-bb OPS cm9vdDp0b29yCg==
 
 if [ -z $1 ]; then
-	echo -en "\033[0;31m" # display red
+	echo -en "\033[0;31m"
 	echo "Specify a project key."
 	echo -en "\033[0m"
   exit 1
 fi
 
 if [ -z $2 ]; then
-	echo -en "\033[0;31m" # display red
+	echo -en "\033[0;31m"
 	echo "Provide basic auth credentials."
 	echo -en "\033[0m"
   exit 1
 fi
 
-RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/DATA/repos"
+RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/$1/repos?limit=1000"
 
 SSH_URLS=($(curl -s -X GET \
   -H "Authorization: Basic$2" \
