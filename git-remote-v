@@ -24,7 +24,7 @@ for d in $dir; do
 
   if [ ! -d "$d/.git" ]; then
     echo -en "\033[0;31m" # display red
-    echo "Not a git repository"
+    echo "Not a Git repository"
     echo -en "\033[0m"
     exit 1
   fi

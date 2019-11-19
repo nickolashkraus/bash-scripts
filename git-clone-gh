@@ -1,17 +1,32 @@
 #!/usr/bin/env bash
 #
-# Usage: git-clone-gh <user>
+# Usage: git-clone-gh [-u <user>] [-o <org>]
 #
-# Description: Clones public repositories for the specified user.
+# Description: Clones all repositories for the specified user or organization.
 #
-# Example:
+# Examples:
 #
-#     git-clone-gh NickolasHKraus
+#   git-clone-gh -u NickolasHKraus
+#
+#   git-clone-gh -o Dwolla
 
-if [ -z $1 ]; then
+function usage {
+  echo 'usage: git-clone-gh [-u <user>] [-o <org>]'
+}
+
+if [ -z $1 ] || [ $1 != '-u' -a $1 != '-o' ]; then
 	echo -en "\033[0;31m"
-	echo "Specify a user."
-	echo -en "\033[0m"
+  echo "Specify a valid flag (-u or -o)."
+	echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
+
+if [ -z $2 ]; then
+	echo -en "\033[0;31m"
+	echo "Specify a user or organization."
+	echo -en "\033[0m\n"
+  usage
   exit 1
 fi
 
@@ -26,7 +41,27 @@ if [ $? -eq 255 ]; then
   exit 1
 fi
 
-SSH_URLS=($(curl -s https://api.github.com/users/$1/repos | jq '.[].ssh_url' | tr -d \"))
+if [ $1 == '-u' ]; then
+  RESOURCE="users/$2/repos"
+elif [ $1 == '-o' ]; then
+  RESOURCE="orgs/$2/repos"
+else
+  exit 1
+fi
+
+# The GitHub API only returns 30 results. Therefore, increment PAGE until no
+# results are returned.
+PAGE=1
+SSH_URLS=()
+while true; do
+  urls=($(curl -s "https://api.github.com/$RESOURCE?sort=full_name&page=$PAGE" | jq '.[].ssh_url' | tr -d \"))
+  if [ ${#urls[@]} -eq 0 ]; then
+    break
+  else
+    SSH_URLS+=(${urls[@]})
+  fi
+  let PAGE=PAGE+1
+done
 
 for ssh_url in "${SSH_URLS[@]}"; do
 

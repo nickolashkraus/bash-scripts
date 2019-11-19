@@ -2,11 +2,11 @@
 #
 # Usage: git-clone-bb <project-key> <credentials>
 #
-# Description: Clones repositories for the specified project.
+# Description: Clones all repositories for the specified project.
 #
 # Example:
 #
-#     git-clone-bb OPS cm9vdDp0b29yCg==
+#   git-clone-bb OPS cm9vdDp0b29yCg==
 
 if [ -z $1 ]; then
 	echo -en "\033[0;31m"
