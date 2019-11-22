@@ -30,7 +30,7 @@ if [ -z $2 ]; then
   exit 1
 fi
 
-(ssh-agent -s && ssh-add ~/.ssh/id_rsa) >/dev/null 2>&1
+eval `ssh-agent -s` >/dev/null 2>&1 && ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
 
 ssh git@github.com >/dev/null 2>&1
 
@@ -67,12 +67,15 @@ for ssh_url in "${SSH_URLS[@]}"; do
 
   echo Cloning "${ssh_url}"..
 
-  output=$(git clone "${ssh_url}" 2>&1)
+ #  output=$(git clone "${ssh_url}" 2>&1)
 
-  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
-    echo -en "\033[0;31m"
-    echo "Repository already exists."
-    echo -en "\033[0m"
-  fi
+ #  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
+ #    echo -en "\033[0;31m"
+ #    echo "Repository already exists."
+ #    echo -en "\033[0m"
+ #  fi
 
 done
+
+# clean up ssh-agent
+ssh-agent -k >/dev/null 2>&1
