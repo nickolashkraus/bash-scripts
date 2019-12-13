@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+#
+# Usage: apple [-c]
+#
+# Description: Prints system info to the console.
+#
+# Note: Passing the `-c` flag with print with color.
+
+user=$(whoami)
+hostname=$(hostname | sed 's/.local//g')
+
+version="OS X $(sw_vers -productVersion)"
+version_number=$(sw_vers -productVersion)
+version_major=$(echo $version_number | cut -d'.' -f1)
+version_minor=$(echo $version_number | cut -d'.' -f2)
+version_short="${version_major}.${version_minor}"
+
+case $version_short in
+  10.15)
+    version_string="Catalina"
+    ;;
+  10.14)
+    version_string="Mojave"
+    ;;
+  10.13)
+    version_string="High Sierra"
+    ;;
+  10.12)
+    version_string="Sierra"
+    ;;
+  10.11)
+    version_string="El Capitan"
+    ;;
+  10.10)
+    version_string="Yosemite"
+    ;;
+  10.9)
+    version_string="Mavericks"
+    ;;
+  10.8)
+    version_string="Mountain Lion"
+    ;;
+  10.7)
+    version_string="Lion"
+    ;;
+  10.6)
+    version_string="Snow Leopard"
+    ;;
+  10.5)
+    version_string="Leopard"
+    ;;
+  10.4)
+    version_string="Tiger"
+    ;;
+  10.3)
+    version_string="Panther"
+    ;;
+  10.2)
+    version_string="Jaguar"
+    ;;
+  10.1)
+    version_string="Puma"
+    ;;
+  10.0)
+    version_string="Cheetah"
+    ;;
+esac
+
+int_ip_addr=$(ipconfig getifaddr en1)
+if [ -z "$int_ip_addr" ]; then
+  int_ip_addr=$(ipconfig getifaddr en0)
+fi
+ext_ip_addr=$(curl -s -m 1 ifconfig.me)
+
+kernel=$(uname)
+uptime=$(uptime | sed 's/.*up \([^,]*\), .*/\1/')
+shell="$SHELL"
+terminal="$TERM"
+packages="$(brew list -l | wc -l | awk '{print $1}')"
+cpu=$(sysctl -n machdep.cpu.brand_string)
+mem=$(sysctl -n hw.memsize)
+ram="$((mem/1073741824)) GB"
+disk=$(df | head -2 | tail -1 | awk '{print $5}')
+
+if [[ $1 == "-c" ]]; then
+  GREEN="\033[0;32m"
+  YELLOW="\033[0;33m"
+  ORANGE="\033[1;31m"
+  RED="\033[0;31m"
+  PURPLE="\033[0;35m"
+  BLUE="\033[0;34m"
+fi
+
+echo -en "
+${GREEN}                              .8
+${GREEN}                            .888
+${GREEN}                          .8888'
+${GREEN}                         .8888'
+${GREEN}                         888'
+${GREEN}                         8'
+${YELLOW}            .88888888888. .88888888888.
+${YELLOW}         .888888888888888888888888888888.         User: $user
+${YELLOW}       .8888888888888888888888888888888888.       Hostname: $hostname
+${ORANGE}      .&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'         Version: $version $version_string
+${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'           Kernel: $kernel
+${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'            Uptime: $uptime
+${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.            Shell: $shell
+${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.           Terminal: $terminal
+${RED}      \`%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.         Packages: $packages
+${PURPLE}       \`0000000000000000000000000000000000'       CPU: $cpu
+${PURPLE}        \`00000000000000000000000000000000'        Memory: $ram
+${PURPLE}          \`############################'          Disk Used: $disk
+${BLUE}            \`########################'            Internal IP: $int_ip_addr
+${BLUE}              \`#########''#########'              External IP: $ext_ip_addr
+${BLUE}                \`\"\"\"\"\"\"'  \`\"\"\"\"\"\"'
+"
+
+tput sgr0
