@@ -22,7 +22,7 @@ if [ -z $2 ]; then
   exit 1
 fi
 
-RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/$1/repos?limit=1000"
+RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/$1/repos?limit=2048"
 
 SSH_URLS=($(curl -s -X GET \
   -H "Authorization: Basic$2" \
