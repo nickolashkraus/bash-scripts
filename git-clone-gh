@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # Usage: git-clone-gh [-u <user>] [-o <org>]
 #

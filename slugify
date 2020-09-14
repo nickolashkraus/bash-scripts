@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 if ! [ -x "$(command -v pbcopy)"  ]; then
     echo 'Error: pbcopy is not installed.' >&2
