@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Executes `git config user.name <user.name> user.email <user.email>` for each
+# repository in the current directory.
+#
+# Usage: git-config-all <user.name> <user.email>
+
+function usage {
+  echo -en "\033[0;37m"
+  echo "Usage: git-config-all <user.name> <user.email>"
+  echo -en "\033[0m"
+}
+
+if [ -z "$1" ]; then
+  echo -en "\033[0;31m"
+  echo "Specify a user name."
+  echo -en "\033[0m"
+  usage
+  exit 1
+fi
+
+if [ -z "$2" ]; then
+  echo -en "\033[0;31m"
+  echo "Specify a user email."
+  echo -en "\033[0m"
+  usage
+  exit 1
+fi
+
+for d in *; do \
+    if [ -d "$d" ]; then
+      pushd "$d" >/dev/null || exit
+      git config user.name "$1" && \
+      git config user.email "$2"
+      popd >/dev/null || exit
+    fi
+done
