@@ -11,8 +11,8 @@ hostname=$(hostname | sed 's/.local//g')
 
 version="OS X $(sw_vers -productVersion)"
 version_number=$(sw_vers -productVersion)
-version_major=$(echo $version_number | cut -d'.' -f1)
-version_minor=$(echo $version_number | cut -d'.' -f2)
+version_major=$(echo "${version_number}" | cut -d'.' -f1)
+version_minor=$(echo "${version_number}" | cut -d'.' -f2)
 version_short="${version_major}.${version_minor}"
 
 case $version_short in
@@ -76,7 +76,7 @@ kernel=$(uname)
 uptime=$(uptime | sed 's/.*up \([^,]*\), .*/\1/')
 shell="$SHELL"
 terminal="$TERM"
-packages="$(brew list -l | wc -l | awk '{print $1}')"
+packages="$(brew list -l --formulae | wc -l | awk '{print $1}')"
 cpu=$(sysctl -n machdep.cpu.brand_string)
 mem=$(sysctl -n hw.memsize)
 ram="$((mem/1073741824)) GB"
