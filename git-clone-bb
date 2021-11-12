@@ -9,13 +9,13 @@
 #
 # EXAMPLE
 #
-#   git-clone-bb OPS cm9vdDp0b29yCg==
+#   git-clone-bb ABC xxxxxxxx
 
 function usage {
   echo 'usage: git-clone-bb [project-key] [credentials]'
   echo ''
   echo '  Arguments:'
-  echo '    project-key: project key for the repository (ex. OPS)'
+  echo '    project-key: project key for the repository (ex. ABC)'
   echo '    credentials: basic auth credentials'
 }
 
