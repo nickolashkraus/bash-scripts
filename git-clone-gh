@@ -1,28 +1,35 @@
 #!/bin/bash
 #
-# Usage: git-clone-gh [-u <user>] [-o <org>]
+# DESCRIPTION
+# Clones all GitHub repositories for the specified user or organization.
 #
-# Description: Clones all repositories for the specified user or organization.
+# USAGE
 #
-# Examples:
+#   git-clone-gh [-u, --user <user>] [-o, --org <org>]
+#
+# EXAMPLE
 #
 #   git-clone-gh -u NickolasHKraus
 #
 #   git-clone-gh -o Dwolla
 
 function usage {
-  echo 'usage: git-clone-gh [-u <user>] [-o <org>]'
+  echo 'usage: git-clone-gh [-u, --user <user>] [-o, --org <org>]'
+  echo ''
+  echo '  Options:'
+  echo '    -u, --user: clone user repositories'
+  echo '    -o, --org: clone organization repositories'
 }
 
-if [ -z $1 ] || [ $1 != '-u' -a $1 != '-o' ]; then
+if [ -z "${1}" ]; then
 	echo -en "\033[0;31m"
-  echo "Specify a valid flag (-u or -o)."
+  echo "Specify a valid option."
 	echo -en "\033[0m\n"
   usage
   exit 1
 fi
 
-if [ -z $2 ]; then
+if [ -z "${2}" ]; then
 	echo -en "\033[0;31m"
 	echo "Specify a user or organization."
 	echo -en "\033[0m\n"
@@ -30,7 +37,27 @@ if [ -z $2 ]; then
   exit 1
 fi
 
-eval `ssh-agent -s` >/dev/null 2>&1 && \
+if [[ "${1}" =~ ^\-.*|^\-\-.* ]]; then
+  if [[ "${1}" =~ ^\-u$|^\-\-user$ ]]; then
+    user='true'
+  elif [[ "${1}" =~ ^\-o$|^\-\-org$ ]]; then
+    org='true'
+  else
+    error='true'
+  fi
+else
+  error='true'
+fi
+
+if [ "${error}" == 'true' ]; then
+  echo -en "\033[0;31m"
+  echo "${1} is not a valid option."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
+
+eval $(ssh-agent -s) >/dev/null 2>&1 && \
   ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
 
 ssh git@github.com >/dev/null 2>&1
@@ -42,10 +69,10 @@ if [ $? -eq 255 ]; then
   exit 1
 fi
 
-if [ $1 == '-u' ]; then
-  RESOURCE="users/$2/repos"
-elif [ $1 == '-o' ]; then
-  RESOURCE="orgs/$2/repos"
+if [ "${user}" == 'true' ]; then
+  RESOURCE="users/${2}/repos"
+elif [ "${org}" == 'true' ]; then
+  RESOURCE="orgs/${2}/repos"
 else
   exit 1
 fi
@@ -55,22 +82,22 @@ fi
 PAGE=1
 SSH_URLS=()
 while true; do
-  urls=($(curl -s "https://api.github.com/$RESOURCE?sort=full_name&page=$PAGE" | jq '.[].ssh_url' | tr -d \"))
+  urls=($(curl -s "https://api.github.com/${RESOURCE}?sort=full_name&page=${PAGE}" | jq '.[].ssh_url' | tr -d \"))
   if [ ${#urls[@]} -eq 0 ]; then
     break
   else
-    SSH_URLS+=(${urls[@]})
+    SSH_URLS+=("${urls[@]}")
   fi
-  let PAGE=PAGE+1
+  (( PAGE=PAGE+1 ))
 done
 
 for ssh_url in "${SSH_URLS[@]}"; do
 
-  echo Cloning "${ssh_url}"..
+  echo Cloning "${ssh_url}"...
 
   output=$(git clone "${ssh_url}" 2>&1)
 
-  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
+  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
     echo -en "\033[0;31m"
     echo "Repository already exists."
     echo -en "\033[0m"
@@ -78,5 +105,5 @@ for ssh_url in "${SSH_URLS[@]}"; do
 
 done
 
-# clean up ssh-agent
+# Clean up ssh-agent
 ssh-agent -k >/dev/null 2>&1
