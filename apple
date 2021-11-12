@@ -1,10 +1,40 @@
 #!/bin/bash
 #
-# Usage: apple [-c]
+# DESCRIPTION
+# Prints system info to the console.
 #
-# Description: Prints system info to the console.
+# USAGE
 #
-# Note: Passing the `-c` flag with print with color.
+#   apple [-c, --color]
+
+function usage {
+  echo 'usage: apple [-c, --color]'
+  echo ''
+  echo '  Options:'
+  echo '    -c, --color: print with color'
+}
+
+args=("$@")
+
+for arg in "${args[@]}"; do
+  if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
+    if [[ "${arg}" =~ ^\-c$|^\-\-color$ ]]; then
+      color='true'
+    else
+      error='true'
+    fi
+  else
+    error='true'
+  fi
+done
+
+if [ "${error}" == 'true' ]; then
+  echo -en "\033[0;31m"
+  echo "${arg} is not a valid option."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
 
 user=$(whoami)
 hostname=$(hostname | sed 's/.local//g')
@@ -15,7 +45,10 @@ version_major=$(echo "${version_number}" | cut -d'.' -f1)
 version_minor=$(echo "${version_number}" | cut -d'.' -f2)
 version_short="${version_major}.${version_minor}"
 
-case $version_short in
+case "${version_short}" in
+  11.6)
+    version_string="Big Sur"
+    ;;
   10.15)
     version_string="Catalina"
     ;;
@@ -67,22 +100,24 @@ case $version_short in
 esac
 
 int_ip_addr=$(ipconfig getifaddr en1)
-if [ -z "$int_ip_addr" ]; then
+
+if [ -z "${int_ip_addr}" ]; then
   int_ip_addr=$(ipconfig getifaddr en0)
 fi
+
 ext_ip_addr=$(curl -s -m 1 ifconfig.me)
 
 kernel=$(uname)
 uptime=$(uptime | sed 's/.*up \([^,]*\), .*/\1/')
-shell="$SHELL"
-terminal="$TERM"
+shell="${SHELL}"
+terminal="${TERM}"
 packages="$(brew list -l --formulae | wc -l | awk '{print $1}')"
 cpu=$(sysctl -n machdep.cpu.brand_string)
 mem=$(sysctl -n hw.memsize)
 ram="$((mem/1073741824)) GB"
 disk=$(df | head -2 | tail -1 | awk '{print $5}')
 
-if [[ $1 == "-c" ]]; then
+if [ "${color}" == "true" ]; then
   GREEN="\033[0;32m"
   YELLOW="\033[0;33m"
   ORANGE="\033[1;31m"
@@ -99,19 +134,19 @@ ${GREEN}                         .8888'
 ${GREEN}                         888'
 ${GREEN}                         8'
 ${YELLOW}            .88888888888. .88888888888.
-${YELLOW}         .888888888888888888888888888888.         User: $user
-${YELLOW}       .8888888888888888888888888888888888.       Hostname: $hostname
-${ORANGE}      .&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'         Version: $version $version_string
-${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'           Kernel: $kernel
-${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'            Uptime: $uptime
-${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.            Shell: $shell
-${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.           Terminal: $terminal
-${RED}      \`%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.         Packages: $packages
-${PURPLE}       \`0000000000000000000000000000000000'       CPU: $cpu
-${PURPLE}        \`00000000000000000000000000000000'        Memory: $ram
-${PURPLE}          \`############################'          Disk Used: $disk
-${BLUE}            \`########################'            Internal IP: $int_ip_addr
-${BLUE}              \`#########''#########'              External IP: $ext_ip_addr
+${YELLOW}         .888888888888888888888888888888.         User: ${user}
+${YELLOW}       .8888888888888888888888888888888888.       Hostname: ${hostname}
+${ORANGE}      .&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'         Version: ${version} ${version_string}
+${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'           Kernel: ${kernel}
+${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'            Uptime: ${uptime}
+${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.            Shell: ${shell}
+${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.           Terminal: ${terminal}
+${RED}      \`%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.         Packages: ${packages}
+${PURPLE}       \`0000000000000000000000000000000000'       CPU: ${cpu}
+${PURPLE}        \`00000000000000000000000000000000'        Memory: ${ram}
+${PURPLE}          \`############################'          Disk Used: ${disk}
+${BLUE}            \`########################'            Internal IP: ${int_ip_addr}
+${BLUE}              \`#########''#########'              External IP: ${ext_ip_addr}
 ${BLUE}                \`\"\"\"\"\"\"'  \`\"\"\"\"\"\"'
 "
 
