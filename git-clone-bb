@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # DESCRIPTION
-# Clones all Bitbucket repositories for the specified project.
+# Clone all Bitbucket repositories for the specified project.
 #
 # USAGE
 #
