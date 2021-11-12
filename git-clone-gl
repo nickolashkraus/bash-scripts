@@ -1,0 +1,109 @@
+#!/bin/bash
+#
+# DESCRIPTION
+# Clone all GitLab repositories for the specified group.
+#
+# USAGE
+#
+#   git-clone-gl [group] [access-token]
+#
+# EXAMPLE
+#
+#   git-clone-gl group xxxxxxxx
+#
+# ADDITIONAL INFORMATION
+#
+# There are several ways you can authenticate with the GitLab API. The easiest
+# way is to create a GitLab access token (Settings > Access Tokens >
+# Create personal access token).
+#
+# You can use access tokens to authenticate with the API by passing it in
+# either the private_token parameter or the PRIVATE-TOKEN header.
+#
+# You can also use personal or project access tokens with OAuth-compliant
+# headers ("Authorization: Bearer <access-token>")
+#
+# The access token can be passed via a command-line argument or set via the
+# environment variable GITLAB_API_TOKEN.
+
+function usage {
+  echo 'usage: git-clone-gl [group] [access-token]'
+  echo ''
+  echo '  Arguments:'
+  echo '    group: GitLab group'
+  echo '    access-token: GitLab access token'
+  echo '      * The access token can be passed via a command-line argument or'
+  echo '        set via the environment variable GITLAB_API_TOKEN.'
+}
+
+if [ -z "${1}" ]; then
+  echo -en "\033[0;31m"
+  echo "Specify a group."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+else
+  group="${1}"
+fi
+
+if [ -z "${2}" ]; then
+  if [ -z "${GITLAB_API_TOKEN}" ]; then
+    echo -en "\033[0;31m"
+    echo "Specify an access token."
+    echo -en "\033[0m\n"
+    usage
+    exit 1
+  else
+    access_token="${GITLAB_API_TOKEN}"
+  fi
+else
+  access_token="${2}"
+fi
+
+eval $(ssh-agent -s) >/dev/null 2>&1 && \
+  ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
+
+ssh git@gitlab.internal.granular.ag >/dev/null 2>&1
+
+if [ $? -eq 255 ]; then
+  echo -en "\033[0;31m"
+  echo "Permission denied (publickey)."
+  echo -en "\033[0m"
+  exit 1
+fi
+
+# The GitLab API returns a maximum of 100 results per page. Therefore, we
+# increment PAGE until no results are returned.
+PAGE=1
+SSH_URLS=()
+while true; do
+  urls=($(curl -L --silent -X GET \
+    --header "Authorization: Bearer ${access_token}" \
+    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${PAGE}&order_by=name&with_shared=false" \
+    | jq '.[].ssh_url_to_repo' \
+    | tr -d \"))
+
+  if [ ${#urls[@]} -eq 0 ]; then
+    break
+  else
+    SSH_URLS+=("${urls[@]}")
+  fi
+  (( PAGE=PAGE+1 ))
+done
+
+for ssh_url in "${SSH_URLS[@]}"; do
+
+  echo Cloning "${ssh_url}"...
+
+  output=$(git clone "${ssh_url}" 2>&1)
+
+  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
+    echo -en "\033[0;31m"
+    echo "Repository already exists."
+    echo -en "\033[0m"
+  fi
+
+done
+
+# Clean up ssh-agent
+ssh-agent -k >/dev/null 2>&1
