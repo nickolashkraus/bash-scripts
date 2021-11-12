@@ -1,42 +1,55 @@
 #!/bin/bash
 #
-# Usage: git-clone-bb <project-key> <credentials>
+# DESCRIPTION
+# Clones all Bitbucket repositories for the specified project.
 #
-# Description: Clones all repositories for the specified project.
+# USAGE
 #
-# Example:
+#   git-clone-bb [project-key] [credentials]
+#
+# EXAMPLE
 #
 #   git-clone-bb OPS cm9vdDp0b29yCg==
 
-if [ -z $1 ]; then
+function usage {
+  echo 'usage: git-clone-bb [project-key] [credentials]'
+  echo ''
+  echo '  Arguments:'
+  echo '    project-key: project key for the repository (ex. OPS)'
+  echo '    credentials: basic auth credentials'
+}
+
+if [ -z "${1}" ]; then
 	echo -en "\033[0;31m"
 	echo "Specify a project key."
 	echo -en "\033[0m"
+  usage
   exit 1
 fi
 
-if [ -z $2 ]; then
+if [ -z "${2}" ]; then
 	echo -en "\033[0;31m"
 	echo "Provide basic auth credentials."
 	echo -en "\033[0m"
+  usage
   exit 1
 fi
 
-RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/$1/repos?limit=2048"
+RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/${1}/repos?limit=2048"
 
 SSH_URLS=($(curl -s -X GET \
-  -H "Authorization: Basic$2" \
-  -H "Content-Type: application/json" $RESOURCE | \
+  -H "Authorization: Basic${2}" \
+  -H "Content-Type: application/json" "${RESOURCE}" | \
   jq '.values[].links.clone[] | select(.name == "ssh") | .href' \
   | tr -d \"))
 
 for ssh_url in "${SSH_URLS[@]}"; do
 
-  echo Cloning "${ssh_url}"..
+  echo Cloning "${ssh_url}"...
 
   output=$(git clone "${ssh_url}" 2>&1)
 
-  if [ $(echo $output | grep -i "already exists" -c) -ne 0 ]; then
+  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
     echo -en "\033[0;31m"
     echo "Repository already exists."
     echo -en "\033[0m"
