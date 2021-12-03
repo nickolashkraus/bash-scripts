@@ -1,13 +1,29 @@
 #!/bin/bash
+#
+# DESCRIPTION
+# Convert YAML to JSON.
+#
+# USAGE
+#
+#   yaml2json [file]
 
-file="$1"
+function usage {
+  echo 'usage: yaml2json [file]'
+  echo ''
+  echo '  Arguments:'
+  echo '    file: JSON file to convert to YAML'
+}
 
-if [ ! -e "$file" ]; then
-  echo "'${file}' does not exist."
-  exit
+file="${1}"
+
+if [ ! -e "${file}" ]; then
+  echo -en "\033[0;31m"
+  echo "${file} does not exist."
+  echo -en "\033[0m\n"
+  exit 1
 fi
 
-filename=$(echo $file | cut -f 1 -d '.')
+FILENAME=$(echo "${file}" | cut -f 1 -d '.')
 
 PYTHON=$(cat << END
 import sys;
@@ -19,4 +35,4 @@ json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)
 END
 )
 
-python -c "$PYTHON" < $filename.yaml > $filename.json
+python -c "${PYTHON}" < "${FILENAME}.yaml" > "${FILENAME}.json"
