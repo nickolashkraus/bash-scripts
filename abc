@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# DESCRIPTION
+# Sort strings alphabetically.
+#
+# USAGE
+#
+#   abc
+#
+# ADDITIONAL INFORMATION
+# The string to alphabetize is retrieved from the Clipboard.
+
+if ! [ -x "$(command -v pbcopy)"  ]; then
+  echo 'Error: pbcopy is not installed.' >&2
+  exit 1
+fi
+
+if ! [ -x "$(command -v pbpaste)"  ]; then
+  echo 'Error: pbpaste is not installed.' >&2
+  exit 1
+fi
+
+pbpaste > 'abc'
+sort < 'abc' > 'abc.tmp'
+pbcopy < 'abc.tmp'
+rm 'abc' 'abc.tmp'
