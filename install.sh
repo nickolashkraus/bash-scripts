@@ -21,6 +21,10 @@
 #   ./install.sh
 #   ```
 
+function usage {
+  echo 'usage: install.sh'
+}
+
 mkdir -p "${HOME}"/bin
 
 for f in "$(pwd)"/*; do

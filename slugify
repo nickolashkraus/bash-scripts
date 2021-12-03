@@ -10,6 +10,10 @@
 # ADDITIONAL INFORMATION
 # The string to slugify is retrieved from the Clipboard.
 
+function usage {
+  echo 'usage: slugify'
+}
+
 if ! [ -x "$(command -v pbcopy)"  ]; then
   echo 'Error: pbcopy is not installed.' >&2
   exit 1

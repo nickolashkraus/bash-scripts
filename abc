@@ -10,6 +10,10 @@
 # ADDITIONAL INFORMATION
 # The string to alphabetize is retrieved from the Clipboard.
 
+function usage {
+  echo 'usage: abc'
+}
+
 if ! [ -x "$(command -v pbcopy)"  ]; then
   echo 'Error: pbcopy is not installed.' >&2
   exit 1
