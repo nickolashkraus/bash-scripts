@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/github/license/NickolasHKraus/bash-scripts?color=blue)](https://github.com/NickolasHKraus/bash-scripts/blob/master/LICENSE)
 
-A collection of helpful bash scripts.
+A collection of helpful Bash scripts.
 
 ## Installation
 
