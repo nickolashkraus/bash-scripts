@@ -1,13 +1,23 @@
 #!/bin/bash
+#
+# DESCRIPTION
+# Create a URL slug from a string.
+#
+# USAGE
+#
+#   slugify
+#
+# ADDITIONAL INFORMATION
+# The string to slugify is retrieved from the Clipboard.
 
 if ! [ -x "$(command -v pbcopy)"  ]; then
-    echo 'Error: pbcopy is not installed.' >&2
-    exit 1
+  echo 'Error: pbcopy is not installed.' >&2
+  exit 1
 fi
 
 if ! [ -x "$(command -v pbpaste)"  ]; then
-    echo 'Error: pbpaste is not installed.' >&2
-    exit 1
+  echo 'Error: pbpaste is not installed.' >&2
+  exit 1
 fi
 
 # This command will do the following:
@@ -16,4 +26,4 @@ fi
 # 3. Deduplicate hyphens ('--' >>> '-')
 # 4. Change all characters to lowercase
 # 5. Remove trailing newline ('\n')
-text=$(pbpaste | sed 's/[ ]/\-/g' | sed 's/[,;/?:@=&]//g' | sed -E 's/[\-]{2,}/\-/g' | awk '{print tolower($1)}' | tr -d '\n' | pbcopy)
+pbpaste | sed 's/[ ]/\-/g' | sed 's/[,;/?:@=&]//g' | sed -E 's/[\-]{2,}/\-/g' | awk '{print tolower($1)}' | tr -d '\n' | pbcopy
