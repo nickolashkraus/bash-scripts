@@ -1,69 +1,113 @@
 #!/bin/bash
+#
+# DESCRIPTION
+# Pull all Git repositories within a given directory.
+#
+# USAGE
+#
+#   git-pull [directory] [-m, --master]
 
-dir="$1"
+function usage {
+  echo 'usage: git-pull [directory] [-m, --master]'
+  echo ''
+  echo '  Arguments:'
+  echo '    directory: directory to use (defaults to current directory)'
+  echo ''
+  echo '  Options:'
+  echo '    -m, --master: whether to checkout master before executing `git pull`'
+}
 
-if [ -z "$dir" ]; then
+args=("$@")
+
+for arg in "${args[@]}"; do
+  if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
+    if [[ "${arg}" =~ ^\-m$|^\-\-master$ ]]; then
+      master='true'
+    else
+      echo -en "\033[0;31m"
+      echo "${arg} is not a valid option."
+      echo -en "\033[0m\n"
+      usage
+      exit 1
+    fi
+  else
+    dir=${arg}
+  fi
+done
+
+if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
-  if [ ! -e "$dir" ]; then
-    echo "'${dir}' does not exist."
-    exit
+  if [ ! -e "${dir}" ]; then
+    echo -en "\033[0;31m"
+    echo "${dir} does not exist."
+    echo -en "\033[0m\n"
+    exit 1
   fi
 fi
 
-if [[ $dir != */ ]]; then
-  dir="$dir/*"
-else
-  dir="$dir*"
-fi
+for d in "${dir}"/*; do
 
-for d in $dir; do
   [ -d "${d}" ] || continue
 
-  echo $(basename $d)
+  basename "${d}"
 
-  if [ ! -d "$d/.git" ]; then
-    echo -en "\033[0;31m" # display red
-    echo "Not a Git repository"
+  if [ ! -d "${d}/.git" ]; then
+    echo -en "\033[0;31m"
+    echo "$(basename "${d}") is not a Git repository."
     echo -en "\033[0m"
     exit 1
   fi
 
-  aborting=0
-  tracking=0
-  updating=0
+  pushd "${d}" >/dev/null || exit
 
-  cd $d
+  if [ "${master}" == 'true' ]; then
+    output=$(git checkout master 2>&1)
+    if [[ "${output}" =~ error ]]; then
+      echo -en "\033[0;31m" # display red
+      echo "Branch 'master' does not exist."
+      echo -en "\033[0m"
+      continue
+    else
+      output=$(git branch --set-upstream-to=origin/master master 2>&1)
+      if [[ "${output}" =~ error ]]; then
+        echo -en "\033[0;31m" # display red
+        echo "The requested upstream branch 'origin/master' does not exist."
+        echo -en "\033[0m"
+        continue
+      fi
+    fi
+  fi
 
   output=$(git pull 2>&1)
 
-  if [ $(echo $output | grep -i aborting -c) -ne 0 ]; then
-    aborting=1
-    echo -en "\033[0;31m" # display red
-    echo "Aborting"
-    echo -en "\033[0m"
+  if [[ "${output}" =~ aborting ]]; then
+      echo -en "\033[0;31m" # display red
+      echo "Aborting"
+      echo -en "\033[0m"
+  elif [[ "${output}" =~ error ]]; then
+      echo -en "\033[0;31m" # display red
+      echo "Error"
+      echo -en "\033[0m"
+  elif [[ "${output}" =~ fatal ]]; then
+      echo -en "\033[0;31m" # display red
+      echo "Fatal"
+      echo -en "\033[0m"
+  elif [[ "${output}" =~ tracking ]]; then
+      echo -en "\033[0;33m" # display yellow
+      echo "There is no tracking information for the current branch."
+      git branch | grep "\*"
+      echo -en "\033[0m"
+  elif [[ "${output}" =~ updating ]]; then
+      echo -en "\033[0;33m" # display yellow
+      echo "Updating"
+      echo -en "\033[0m"
+  else
+      echo -en "\033[0;32m" # display green
+      echo "Already up to date."
+      echo -en "\033[0m"
   fi
 
-  if [ $(echo $output | grep -i tracking -c) -ne 0 ]; then
-    tracking=1
-    echo -en "\033[0;33m" # display yellow
-    echo "There is no tracking information for the current branch."
-    git branch | grep "*"
-    echo -en "\033[0m"
-  fi
+  popd >/dev/null || exit
 
-  if [ $(echo $output | grep -i Updating -c) -ne 0 ]; then
-    updating=1
-    echo -en "\033[0;33m" # display yellow
-    echo "Updating"
-    echo -en "\033[0m"
-  fi
-
-  if [ $aborting -eq 0 -a $updating -eq 0 -a $tracking -eq 0 ]; then
-    echo -en "\033[0;32m" # display green
-    echo "Already up-to-date."
-    echo -en "\033[0m"
-  fi
-
-  cd ../
 done
