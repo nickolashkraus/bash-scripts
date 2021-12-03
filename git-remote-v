@@ -1,39 +1,48 @@
 #!/bin/bash
+#
+# DESCRIPTION
+# Show remotes for all Git repositories within a given directory.
+#
+# USAGE
+#
+#   git-remote-v
 
-dir="$1"
+function usage {
+  echo 'usage: git-remote-v'
+}
 
-if [ -z "$dir" ]; then
+dir="${1}"
+
+if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
-  if [ ! -e "$dir" ]; then
-    echo "'${dir}' does not exist."
-    exit
+  if [ ! -e "${dir}" ]; then
+    echo -en "\033[0;31m"
+    echo "${dir} does not exist."
+    echo -en "\033[0m\n"
+    exit 1
   fi
 fi
 
-if [[ $dir != */ ]]; then
-  dir="$dir/*"
-else
-  dir="$dir*"
-fi
+for d in "${dir}"/*; do
 
-for d in $dir; do
   [ -d "${d}" ] || continue
 
-  echo $(basename $d)
+  basename "${d}"
 
-  if [ ! -d "$d/.git" ]; then
-    echo -en "\033[0;31m" # display red
-    echo "Not a Git repository"
+  if [ ! -d "${d}/.git" ]; then
+    echo -en "\033[0;31m"
+    echo "$(basename "${d}") is not a Git repository."
     echo -en "\033[0m"
     exit 1
   fi
 
-  cd $d
+  pushd "${d}" >/dev/null || exit
 
   echo -en "\033[0;32m" # display green
   git remote -v
   echo -en "\033[0m"
 
-  cd ../
+  popd >/dev/null || exit
+
 done
