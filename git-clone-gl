@@ -72,6 +72,9 @@ if [ $? -eq 255 ]; then
   exit 1
 fi
 
+# Encode URL (convert '\' to '%2f')
+group=$(echo "${group}" | sed "s/\//%2f/")
+
 # The GitLab API returns a maximum of 100 results per page. Therefore, we
 # increment PAGE until no results are returned.
 PAGE=1
