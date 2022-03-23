@@ -15,5 +15,5 @@ export PATH=$HOME/bin:$PATH
 Link executables to `$HOME/bin`:
 
 ```bash
-./install.sh
+./install
 ```
