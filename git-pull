@@ -56,7 +56,7 @@ for d in "${dir}"/*; do
     echo -en "\033[0;31m"
     echo "$(basename "${d}") is not a Git repository."
     echo -en "\033[0m"
-    exit 1
+    continue
   fi
 
   pushd "${d}" >/dev/null || exit
