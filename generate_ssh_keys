@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# DESCRIPTION
+# Generates a public and private RSA key pair.
+#
+# USAGE
+#
+#   generate_ssh_keys [-f output_keyfile]
+#
+# ADDITIONAL INFORMATION
+# See the man pages for `ssh-keygen` for further details.
+
+function usage {
+  echo 'generate_ssh_keys [-f output_keyfile]'
+}
+
+if [ -z "${1}" ] || [ "${1}" != '-f' ]; then
+  echo -en "\033[0;31m"
+  echo "Specify a valid option (-f)."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
+
+if [ -z "${2}" ]; then
+  echo -en "\033[0;31m"
+  echo "Specify an output keyfile."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
+
+OUTPUT_KEYFILE=${2}
+
+# Exit if a key pair of the name 'OUTPUT_KEYFILE' already exists
+if [ -e "${OUTPUT_KEYFILE}" ]; then
+  echo -en "\033[0;31m"
+  echo "File already exists."
+  echo -en "\033[0m"
+  exit 1
+fi
+
+# Create a .ssh directory if one does not already exist
+if [ ! -d "${HOME}/.ssh" ]; then
+  mkdir -p "${HOME}/.ssh"
+fi
+
+# Generate an RSA key pair
+ssh-keygen -b 2048 -t rsa -f "${HOME}/.ssh/${OUTPUT_KEYFILE}" -P ""
+
+# Restrict access to the private key
+chmod 400 "${HOME}/.ssh/${OUTPUT_KEYFILE}"
