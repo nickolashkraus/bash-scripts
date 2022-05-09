@@ -60,7 +60,9 @@ fi
 eval $(ssh-agent -s) >/dev/null 2>&1 && \
   ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
 
+echo '0'
 eval $(ssh git@github.com >/dev/null 2>&1) || EXIT=$?
+echo '1'
 
 if [ "${EXIT}" == "255" ]; then
   echo -en "\033[0;31m"
