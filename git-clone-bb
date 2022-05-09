@@ -20,17 +20,17 @@ function usage {
 }
 
 if [ -z "${1}" ]; then
-	echo -en "\033[0;31m"
-	echo "Specify a project key."
-	echo -en "\033[0m"
+  echo -en "\033[0;31m"
+  echo "Specify a project key."
+  echo -en "\033[0m"
   usage
   exit 1
 fi
 
 if [ -z "${2}" ]; then
-	echo -en "\033[0;31m"
-	echo "Provide basic auth credentials."
-	echo -en "\033[0m"
+  echo -en "\033[0;31m"
+  echo "Provide basic auth credentials."
+  echo -en "\033[0m"
   usage
   exit 1
 fi

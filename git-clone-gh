@@ -22,17 +22,17 @@ function usage {
 }
 
 if [ -z "${1}" ]; then
-	echo -en "\033[0;31m"
+  echo -en "\033[0;31m"
   echo "Specify a valid option."
-	echo -en "\033[0m\n"
+  echo -en "\033[0m\n"
   usage
   exit 1
 fi
 
 if [ -z "${2}" ]; then
-	echo -en "\033[0;31m"
-	echo "Specify a user or organization."
-	echo -en "\033[0m\n"
+  echo -en "\033[0;31m"
+  echo "Specify a user or organization."
+  echo -en "\033[0m\n"
   usage
   exit 1
 fi
@@ -63,9 +63,9 @@ eval $(ssh-agent -s) >/dev/null 2>&1 && \
 eval $(ssh git@github.com >/dev/null 2>&1) || EXIT=$?
 
 if [ "${EXIT}" -eq 255 ]; then
-	echo -en "\033[0;31m"
-	echo "Permission denied (publickey)."
-	echo -en "\033[0m"
+  echo -en "\033[0;31m"
+  echo "Permission denied (publickey)."
+  echo -en "\033[0m"
   exit 1
 fi
 
