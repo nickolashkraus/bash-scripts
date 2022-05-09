@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 #
 # DESCRIPTION
 # Clone all GitHub repositories for the specified user or organization.
@@ -60,9 +60,7 @@ fi
 eval $(ssh-agent -s) >/dev/null 2>&1 && \
   ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
 
-echo '0'
-eval $(ssh git@github.com >/dev/null 2>&1) || EXIT=$?
-echo '1'
+trap 'ssh git@github.com >/dev/null 2>&1 || EXIT=$?' ERR
 
 if [ "${EXIT}" == "255" ]; then
   echo -en "\033[0;31m"
