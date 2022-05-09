@@ -60,9 +60,9 @@ fi
 eval $(ssh-agent -s) >/dev/null 2>&1 && \
   ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
 
-eval $(ssh git@github.com >/dev/null 2>&1)
+eval $(ssh git@github.com >/dev/null 2>&1) || EXIT=$?
 
-if [ $? -eq 255 ]; then
+if [ "${EXIT}" -eq 255 ]; then
 	echo -en "\033[0;31m"
 	echo "Permission denied (publickey)."
 	echo -en "\033[0m"
