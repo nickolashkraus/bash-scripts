@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 #
 # DESCRIPTION
 # Clone all GitHub repositories for the specified user or organization.
