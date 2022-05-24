@@ -14,7 +14,7 @@ function usage {
   echo '    directory: directory to use (defaults to current directory)'
   echo ''
   echo '  Options:'
-  echo '    -m, --master: whether to checkout master before executing `git pull`'
+  echo '    -m, --master: whether to checkout master or main before executing `git pull`'
 }
 
 args=("$@")
@@ -63,19 +63,33 @@ for d in "${dir}"/*; do
 
   if [ "${master}" == 'true' ]; then
     output=$(git checkout master 2>&1)
-    if [[ "${output}" =~ error ]]; then
+    if [ $? -ne 0 ]; then
       echo -en "\033[0;31m" # display red
       echo "Branch 'master' does not exist."
       echo -en "\033[0m"
-      continue
-    else
-      output=$(git branch --set-upstream-to=origin/master master 2>&1)
-      if [[ "${output}" =~ error ]]; then
+      output=$(git checkout main 2>&1)
+      if [ $? -ne 0 ]; then
         echo -en "\033[0;31m" # display red
-        echo "The requested upstream branch 'origin/master' does not exist."
+        echo "Branch 'main' does not exist."
         echo -en "\033[0m"
         continue
+      else
+        output=$(git branch --set-upstream-to=origin/main main 2>&1)
+        if [[ "${output}" =~ error ]]; then
+          echo -en "\033[0;31m" # display red
+          echo "The requested upstream branch 'origin/main' does not exist."
+          echo -en "\033[0m"
+          continue
+        fi
       fi
+    else
+        output=$(git branch --set-upstream-to=origin/master master 2>&1)
+        if [[ "${output}" =~ error ]]; then
+          echo -en "\033[0;31m" # display red
+          echo "The requested upstream branch 'origin/main' does not exist."
+          echo -en "\033[0m"
+          continue
+        fi
     fi
   fi
 
