@@ -5,16 +5,30 @@
 #
 # USAGE
 #
-#   git-clone-gh [-u, --user <user>] [-o, --org <org>]
+#   git-clone-gh [-u, --user <user>] [-o, --org <org>] [access-token]
 #
 # EXAMPLE
 #
 #   git-clone-gh -u NickolasHKraus
 #
-#   git-clone-gh -o Dwolla
+#   git-clone-gh -o Workiva
+#
+# ADDITIONAL INFORMATION
+#
+# GitHub recommends you use OAuth tokens to authenticate to the GitHub API.
+# OAuth tokens include personal access tokens and enable the user to revoke
+# access at any time.
+#
+# SEE ALSO:
+#   * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
 function usage {
   echo 'usage: git-clone-gh [-u, --user <user>] [-o, --org <org>]'
+  echo ''
+  echo '  Arguments:'
+  echo '    access-token: Personal access token'
+  echo '      * The access token can be passed via a command-line argument or'
+  echo '        set via the environment variable GITHUB_API_TOKEN.'
   echo ''
   echo '  Options:'
   echo '    -u, --user: clone user repositories'
@@ -35,6 +49,20 @@ if [ -z "${2}" ]; then
   echo -en "\033[0m\n"
   usage
   exit 1
+fi
+
+if [ -z "${3}" ]; then
+  if [ -z "${GITHUB_API_TOKEN}" ]; then
+    echo -en "\033[0;31m"
+    echo "Specify an access token."
+    echo -en "\033[0m\n"
+    usage
+    exit 1
+  else
+    access_token="${GITHUB_API_TOKEN}"
+  fi
+else
+  access_token="${3}"
 fi
 
 if [[ "${1}" =~ ^\-.*|^\-\-.* ]]; then
@@ -82,7 +110,9 @@ fi
 PAGE=1
 SSH_URLS=()
 while true; do
-  urls=($(curl -s "https://api.github.com/${RESOURCE}?sort=full_name&page=${PAGE}" | jq '.[].ssh_url' | tr -d \"))
+  urls=($(curl -L --silent -X GET \
+    --header "Authorization: Token ${access_token}" \
+    "https://api.github.com/${RESOURCE}?sort=full_name&page=${PAGE}" | jq '.[].ssh_url' | tr -d \"))
   if [ ${#urls[@]} -eq 0 ]; then
     break
   else
