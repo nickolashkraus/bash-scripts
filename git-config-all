@@ -1,15 +1,29 @@
 #!/bin/bash
 #
 # DESCRIPTION
-# Set user.name and user.email for each repository in the current directory.
+# Set user.name, user.email and remote host for each repository in the current
+# directory.
 #
 # USAGE
 #
-#   git-config-all [user.name] [user.email]
+#   git-config-all [user.name] [user.email] [host]
 #
 # EXAMPLE
 #
-#   git-config-all 'Nickolas Kraus' 'NickolasKraus@granular.ag'
+#   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
+#
+# ADDITIONAL INFORMATION
+# The remote host can be used in conjunction with an SSH configuration file
+# in order to manage multiple GitHub identities.
+#
+#   .ssh/config
+#
+#   # nickolaskraus-wf
+#   Host workiva.github.com
+#     HostName github.com
+#     PreferredAuthentications publickey
+#     IdentityFile ~/.ssh/id_rsa_workiva
+
 
 function usage {
   echo 'usage: git-config-all [user.name] [user.email]'
@@ -35,14 +49,26 @@ if [ -z "${2}" ]; then
   exit 1
 fi
 
+if [ -z "${3}" ]; then
+  echo -en "\033[0;31m"
+  echo "Specify a remote host."
+  echo -en "\033[0m"
+  usage
+  exit 1
+fi
+
 user_name="${1}"
 user_email="${2}"
+host="${3}"
 
 for d in *; do \
   if [ -d "${d}" ]; then
     pushd "${d}" >/dev/null || exit
     git config user.name "${user_name}" && \
     git config user.email "${user_email}"
+    orl_url="$(git remote get-url origin)"
+    new_url=$(echo "${orl_url}" | gsed -E "s/@([\w\.]+)\:/${host}/")
+    git remote set-url origin "${new_url}"
     popd >/dev/null || exit
   fi
 done
