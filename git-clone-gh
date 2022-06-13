@@ -127,9 +127,13 @@ for ssh_url in "${SSH_URLS[@]}"; do
 
   output=$(git clone "${ssh_url}" 2>&1)
 
-  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
+  if [[ "${output}" =~ 'already exists' ]]; then
     echo -en "\033[0;31m"
     echo "Repository already exists."
+    echo -en "\033[0m"
+  elif [[ "${output}" =~ 'not found' ]]; then
+    echo -en "\033[0;31m"
+    echo "Please make sure you have the correct access rights and the repository exists."
     echo -en "\033[0m"
   fi
 
