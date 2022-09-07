@@ -19,6 +19,11 @@
 # OAuth tokens include personal access tokens and enable the user to revoke
 # access at any time.
 #
+# NOTE: If resources are protected by organization SAML enforcement, you must
+# grant your personal access token access to this organization.
+#
+#   * Personal access tokens > Configure SSO > Authorize
+#
 # SEE ALSO:
 #   * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
@@ -104,6 +109,8 @@ elif [ "${org}" == 'true' ]; then
 else
   exit 1
 fi
+
+# TODO: Test for organization SAML enforcement.
 
 # The GitHub API only returns 30 results. Therefore, increment PAGE until no
 # results are returned.
