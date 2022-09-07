@@ -67,7 +67,7 @@ for d in *; do \
     git config user.name "${user_name}" && \
     git config user.email "${user_email}"
     orl_url="$(git remote get-url origin)"
-    new_url=$(echo "${orl_url}" | gsed -E "s/@([\w\.]+)\:/${host}/")
+    new_url=$(echo "${orl_url}" | gsed -E "s/@(.*):/@${host}:/")
     git remote set-url origin "${new_url}"
     popd >/dev/null || exit
   fi
