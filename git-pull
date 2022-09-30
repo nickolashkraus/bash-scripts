@@ -5,24 +5,28 @@
 #
 # USAGE
 #
-#   git-pull [directory] [-m, --master]
+#   git-pull [-m, --master] [-i identity_file] [directory]
 
 function usage {
-  echo 'usage: git-pull [directory] [-m, --master]'
+  echo 'usage: git-pull [-m, --master] [-i identity_file] [directory]'
   echo ''
   echo '  Arguments:'
-  echo '    directory: directory to use (defaults to current directory)'
+  echo '    directory: Directory to use (defaults to current directory)'
   echo ''
   echo '  Options:'
-  echo '    -m, --master: whether to checkout master or main before executing `git pull`'
+  echo "    -m, --master: Whether to checkout master or main before executing \`git pull\`"
+  echo "    -i, --identity-file: File from which the identity (private key) for public key authentication is read."
 }
 
 args=("$@")
 
+count=0
 for arg in "${args[@]}"; do
   if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
     if [[ "${arg}" =~ ^\-m$|^\-\-master$ ]]; then
       master='true'
+    elif [[ "${arg}" =~ ^\-i$|^\-\-identity\-file$ ]]; then
+      identity_file="${args[count+1]}"
     else
       echo -en "\033[0;31m"
       echo "${arg} is not a valid option."
@@ -30,10 +34,15 @@ for arg in "${args[@]}"; do
       usage
       exit 1
     fi
-  else
-    dir=${arg}
   fi
+  count=$((count+1))
 done
+
+# If there is an odd number of command-line arguments, the last argument is the
+# directory.
+if [ $(($# % 2)) == 1 ]; then
+  dir="${args[$#-1]}"
+fi
 
 if [ -z "${dir}" ]; then
   dir="$(pwd)"
@@ -45,6 +54,9 @@ else
     exit 1
   fi
 fi
+
+eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+  ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 
 for d in "${dir}"/*; do
 

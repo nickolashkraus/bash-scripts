@@ -5,7 +5,7 @@
 #
 # USAGE
 #
-#   git-clone-gh [-u, --user <user>] [-o, --org <org>] [access-token]
+#   git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]
 #
 # EXAMPLE
 #
@@ -27,8 +27,10 @@
 # SEE ALSO:
 #   * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
+# TODO: Test for organization SAML enforcement.
+
 function usage {
-  echo 'usage: git-clone-gh [-u, --user <user>] [-o, --org <org>]'
+  echo 'usage: git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]'
   echo ''
   echo '  Arguments:'
   echo '    access-token: Personal access token'
@@ -36,62 +38,66 @@ function usage {
   echo '        set via the environment variable GITHUB_API_TOKEN.'
   echo ''
   echo '  Options:'
-  echo '    -u, --user: clone user repositories'
-  echo '    -o, --org: clone organization repositories'
+  echo "    -u, --user: Clone a user's repositories"
+  echo "    -o, --org: Clone an organization's repositories"
+  echo "    -i, --identity-file: File from which the identity (private key) for public key authentication is read."
 }
 
-if [ -z "${1}" ]; then
-  echo -en "\033[0;31m"
-  echo "Specify a valid option."
-  echo -en "\033[0m\n"
-  usage
-  exit 1
-fi
+args=("$@")
 
-if [ -z "${2}" ]; then
-  echo -en "\033[0;31m"
-  echo "Specify a user or organization."
-  echo -en "\033[0m\n"
-  usage
-  exit 1
-fi
-
-if [ -z "${3}" ]; then
-  if [ -z "${GITHUB_API_TOKEN}" ]; then
-    echo -en "\033[0;31m"
-    echo "Specify an access token."
-    echo -en "\033[0m\n"
-    usage
-    exit 1
-  else
-    access_token="${GITHUB_API_TOKEN}"
+count=0
+for arg in "${args[@]}"; do
+  if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
+    if [[ "${arg}" =~ ^\-u$|^\-\-user$ ]]; then
+      user="${args[count+1]}"
+    elif [[ "${arg}" =~ ^\-o$|^\-\-org$ ]]; then
+      org="${args[count+1]}"
+    elif [[ "${arg}" =~ ^\-i$|^\-\-identity\-file$ ]]; then
+      identity_file="${args[count+1]}"
+    else
+      echo -en "\033[0;31m"
+      echo "${arg} is not a valid option."
+      echo -en "\033[0m\n"
+      usage
+      exit 1
+    fi
   fi
-else
-  access_token="${3}"
-fi
+  count=$((count+1))
+done
 
-if [[ "${1}" =~ ^\-.*|^\-\-.* ]]; then
-  if [[ "${1}" =~ ^\-u$|^\-\-user$ ]]; then
-    user='true'
-  elif [[ "${1}" =~ ^\-o$|^\-\-org$ ]]; then
-    org='true'
-  else
-    error='true'
-  fi
-else
-  error='true'
-fi
-
-if [ "${error}" == 'true' ]; then
+# Error if 'user' and 'org' are either both set or not set.
+if { [ -n "${user}" ] && [ -n "${org}" ]; } || { [ -z "${user}" ] && [ -z "${org}" ]; }; then
   echo -en "\033[0;31m"
-  echo "${1} is not a valid option."
+  echo "ERROR: Specify either a user or organization."
   echo -en "\033[0m\n"
   usage
   exit 1
 fi
 
-eval $(ssh-agent -s) >/dev/null 2>&1 && \
-  ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
+# Check if 'identity_file' is set. If not, default to id_rsa.
+if [ -z "${identity_file}" ]; then
+  identity_file='id_rsa'
+fi
+
+# If there is an odd number of command-line arguments, the last argument is the
+# GitHub access token.
+if [ $(($# % 2)) == 1 ]; then
+  access_token="${args[$#-1]}"
+else
+  # Check if the access token is set via the environment variable.
+  access_token="${GITHUB_API_TOKEN}"
+fi
+
+if [ -z "${access_token}" ]; then
+  echo -en "\033[0;31m"
+  echo "ERROR: Specify a GitHub access token."
+  echo -en "\033[0m\n"
+  usage
+  exit 1
+fi
+
+eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+  ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 
 trap 'ssh git@github.com >/dev/null 2>&1 || EXIT=$?' ERR
 
@@ -102,15 +108,26 @@ if [ "${EXIT}" == "255" ]; then
   exit 1
 fi
 
-if [ "${user}" == 'true' ]; then
-  RESOURCE="users/${2}/repos"
-elif [ "${org}" == 'true' ]; then
-  RESOURCE="orgs/${2}/repos"
+# Set RESOURCE and check if GitHub user/organization exists.
+if [ -n "${user}" ]; then
+  RESOURCE="users/${user}/repos"
+  if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null ; then
+    echo -en "\033[0;31m"
+    echo "ERROR: GitHub user does not exist."
+    echo -en "\033[0m\n"
+    exit 1
+  fi
+elif [ -n "${org}" ]; then
+  RESOURCE="orgs/${org}/repos"
+  if ! curl --fail --silent "https://api.github.com/orgs/${org}" >/dev/null; then
+    echo -en "\033[0;31m"
+    echo "ERROR: GitHub organization does not exist."
+    echo -en "\033[0m\n"
+    exit 1
+  fi
 else
   exit 1
 fi
-
-# TODO: Test for organization SAML enforcement.
 
 # The GitHub API only returns 30 results. Therefore, increment PAGE until no
 # results are returned.
