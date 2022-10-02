@@ -28,6 +28,7 @@
 #   * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
 # TODO: Test for organization SAML enforcement.
+# TODO: Add option to write output to log file.
 
 function usage {
   echo 'usage: git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]'

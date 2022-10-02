@@ -7,6 +7,8 @@
 #
 #   git-pull [-m, --master] [-i identity_file] [directory]
 
+# TODO: Add option to write output to log file.
+
 function usage {
   echo 'usage: git-pull [-m, --master] [-i identity_file] [directory]'
   echo ''
@@ -110,14 +112,17 @@ for d in "${dir}"/*; do
   if [[ "${output}" =~ aborting ]]; then
     echo -en "\033[0;31m" # display red
     echo "Aborting"
+    echo "${output}"
     echo -en "\033[0m"
   elif [[ "${output}" =~ error ]]; then
     echo -en "\033[0;31m" # display red
     echo "Error"
+    echo "${output}"
     echo -en "\033[0m"
   elif [[ "${output}" =~ fatal ]]; then
     echo -en "\033[0;31m" # display red
     echo "Fatal"
+    echo "${output}"
     echo -en "\033[0m"
   elif [[ "${output}" =~ tracking ]]; then
     echo -en "\033[0;33m" # display yellow
