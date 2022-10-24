@@ -26,7 +26,7 @@
 
 
 function usage {
-  echo 'usage: git-config-all [user.name] [user.email]'
+  echo 'usage: git-config-all [user.name] [user.email] [host]'
   echo ''
   echo '  Arguments:'
   echo '    user.name: User name'
