@@ -24,7 +24,7 @@ if ! [ -x "$(command -v pbpaste)"  ]; then
   exit 1
 fi
 
-pbpaste > 'abc'
-sort < 'abc' > 'abc.tmp'
-pbcopy < 'abc.tmp'
-rm 'abc' 'abc.tmp'
+pbpaste > 'tmp'
+sort < 'tmp' > 'tmp.tmp'
+pbcopy < 'tmp.tmp'
+rm 'tmp' 'tmp.tmp'
