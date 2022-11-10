@@ -5,13 +5,13 @@
 #
 # USAGE
 #
-#   generate_ssh_keys [-f output_keyfile]
+#   generate-ssh-keys [-f output_keyfile]
 #
 # ADDITIONAL INFORMATION
 # See the man pages for `ssh-keygen` for further details.
 
 function usage {
-  echo 'generate_ssh_keys [-f output_keyfile]'
+  echo 'generate-ssh-keys [-f output_keyfile]'
 }
 
 if [ -z "${1}" ] || [ "${1}" != '-f' ]; then
