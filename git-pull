@@ -109,33 +109,24 @@ for d in "${dir}"/*; do
 
   output=$(git pull 2>&1)
 
-  if [[ "${output}" =~ aborting ]]; then
-    echo -en "\033[0;31m" # display red
-    echo "Aborting"
-    echo "${output}"
+  # TODO: Expand the list of cases as they arise.
+  if [[ "${output}" =~ "Already up to date." ]]; then
+    echo -en "\033[0;32m" # display green
+    echo "Already up to date."
     echo -en "\033[0m"
-  elif [[ "${output}" =~ error ]]; then
-    echo -en "\033[0;31m" # display red
-    echo "Error"
-    echo "${output}"
+  elif [[ "${output}" =~ "Successfully rebased and updated" ]]; then
+    echo -en "\033[0;32m" # display green
+    echo "Successfully rebased and updated"
     echo -en "\033[0m"
-  elif [[ "${output}" =~ fatal ]]; then
-    echo -en "\033[0;31m" # display red
-    echo "Fatal"
-    echo "${output}"
-    echo -en "\033[0m"
-  elif [[ "${output}" =~ tracking ]]; then
+  elif [[ "${output}" =~ "There is no tracking information for the current branch." ]]; then
     echo -en "\033[0;33m" # display yellow
     echo "There is no tracking information for the current branch."
     git branch | grep "\*"
     echo -en "\033[0m"
-  elif [[ "${output}" =~ updating ]]; then
-    echo -en "\033[0;33m" # display yellow
-    echo "Updating"
-    echo -en "\033[0m"
   else
-    echo -en "\033[0;32m" # display green
-    echo "Already up to date."
+    echo -en "\033[0;31m" # display red
+    echo "Error"
+    echo "${output}"
     echo -en "\033[0m"
   fi
 
