@@ -110,18 +110,28 @@ for d in "${dir}"/*; do
   output=$(git pull 2>&1)
 
   # TODO: Expand the list of cases as they arise.
-  if [[ "${output}" =~ "Already up to date." ]]; then
+
+  # Already up to date.
+  if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
     echo -en "\033[0;32m" # display green
     echo "Already up to date."
     echo -en "\033[0m"
-  elif [[ "${output}" =~ "Successfully rebased and updated" ]]; then
+  # Successfully rebased and updated
+  elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
     echo -en "\033[0;32m" # display green
     echo "Successfully rebased and updated"
     echo -en "\033[0m"
-  elif [[ "${output}" =~ "There is no tracking information for the current branch." ]]; then
+  # There is no tracking information for the current branch.
+  elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
     echo -en "\033[0;33m" # display yellow
     echo "There is no tracking information for the current branch."
     git branch | grep "\*"
+    echo -en "\033[0m"
+  # Updating abc1234..def5678
+  elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]{7}\.\.[a-f0-9]{7} ]]; then
+    echo -en "\033[0;33m" # display yellow
+    echo "Updating"
+    echo "${output}"
     echo -en "\033[0m"
   else
     echo -en "\033[0;31m" # display red
