@@ -14,6 +14,14 @@ function usage {
   echo '    file: JSON file to convert to YAML'
 }
 
+if [ -z "${1}" ]; then
+  echo -en "\033[0;31m"
+  echo -e "Must specify a file.\n"
+  echo -en "\033[0m"
+  usage
+  exit 1
+fi
+
 file="${1}"
 
 if [ ! -e "${file}" ]; then
