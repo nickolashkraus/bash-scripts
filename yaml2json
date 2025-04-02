@@ -43,4 +43,4 @@ json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)
 END
 )
 
-python -c "${PYTHON}" < "${FILENAME}.yaml" > "${FILENAME}.json"
+python -c "${PYTHON}" < "${1}" > "${FILENAME}.json"
