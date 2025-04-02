@@ -150,7 +150,7 @@ while read -r gitdir; do
   cd "${repo_dir}" || continue
 
   # Count commits by the specified user.
-  commit_count=$(git log --author="$USER" --oneline | wc -l)
+  commit_count=$(git log --author="${USER}" --oneline | wc -l)
 
   # Trim whitespace from commit count.
   commit_count=$(echo "${commit_count}" | tr -d '[:space:]')
@@ -181,7 +181,7 @@ while read -r gitdir; do
   fi
 
   # Return to original directory.
-  cd - > /dev/null
+  cd - > /dev/null || true
 done < "${FILTERED_REPOS}"
 
 # Clean up temporary find files.
