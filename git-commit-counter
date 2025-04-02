@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+# Scan all Git repositories in a directory and count how many commits have been
+# made by a given user. Allows excluding specific directories.
+#
+# USAGE
+#
+#   git-commit-counter
+
+# Configuration
+USER=""       # Commit author email. Defaults to the email set via global options.
+SCAN_DIR="."  # Directory to scan. Defaults to the current directory.
+TOP_N=10      # Top N most active repositories. Defaults to 10.
+VERBOSE=true  # Set to false to only show summary results.
+
+# Directories to exclude (add patterns you want to exclude)
+# Each line is a pattern that will be passed to grep -v
+# Example exclusions:
+#   ".terraform/modules"   # Exclude Terraform modules
+#   "node_modules"         # Exclude Node.js modules
+#   "vendor/"              # Exclude vendor directories
+EXCLUDE_PATTERNS=(
+  ".terraform/modules"
+  "node_modules"
+  "vendor/"
+  # Add more patterns here...
+)
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Print usage information
+function usage {
+  echo "usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -u, --user USER        Specify Git user email (default: current user email)"
+  echo "  -d, --directory DIR    Specify directory to scan (default: current directory)"
+  echo "  -n, --top-n NUM        Display the top N most active repositories (default: 10)"
+  echo "  -e, --exclude PATTERN  Add a pattern to exclude (can be used multiple times)"
+  echo "  -q, --quiet            Display only summary information"
+  echo "  -h, --help             Display this help message"
+  exit 1
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case "${1}" in
+    -u|--user)
+      USER="${2}"
+      shift 2
+      ;;
+    -d|--directory)
+      SCAN_DIR="${2}"
+      shift 2
+      ;;
+    -n|--top-n)
+      TOP_N="${2}"
+      shift 2
+      ;;
+    -e|--exclude)
+      # Add to exclusion patterns from command line
+      EXCLUDE_PATTERNS+=("${2}")
+      shift 2
+      ;;
+    -q|--quiet)
+      VERBOSE=false
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo "Unknown option: ${1}"
+      usage
+      ;;
+  esac
+done
+
+# Ensure the scan directory exists.
+if [ ! -d "${SCAN_DIR}" ]; then
+  echo "Error: Directory '${SCAN_DIR}' does not exist."
+  exit 1
+fi
+
+# Get absolute path of scan directory.
+SCAN_DIR=$(cd "${SCAN_DIR}" && pwd)
+
+# If no user email is provided, use `git config user.email`.
+if [ -z "${USER}" ]; then
+  USER=$(git config user.email)
+  if [ -z "${USER}" ]; then
+    echo "Error: No user email specified and \`git config user.email\` is not set."
+    echo "Please specify an email with --user or configure git."
+    exit 1
+  fi
+fi
+
+echo -e "${BLUE}Scanning directory:${NC}  ${SCAN_DIR}"
+echo -e "${BLUE}Counting commits by:${NC} ${USER}"
+
+# Display exclusion patterns if any
+if [ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]; then
+  echo -e "${BLUE}Excluding patterns:${NC}"
+  for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+    echo "  - ${pattern}"
+  done
+fi
+echo ""
+
+# Initialize variables for totals.
+TOTAL_REPOS=0
+TOTAL_COMMITS=0
+REPOS_WITH_COMMITS=0
+MAX_COMMITS=0
+MAX_COMMITS_REPO=""
+
+# Create temporary files.
+REPO_DATA_FILE=$(mktemp)
+RESULTS_FILE=$(mktemp)
+FILTERED_REPOS=$(mktemp)
+
+# Find all Git repositories.
+find "${SCAN_DIR}" -type d -name ".git" > "${REPO_DATA_FILE}"
+
+# Filter out excluded patterns.
+cat "${REPO_DATA_FILE}" > "${FILTERED_REPOS}"
+for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+  if [ -n "${pattern}" ]; then
+    grep -v "${pattern}" "${FILTERED_REPOS}" > "${FILTERED_REPOS}.tmp" || true
+    mv "${FILTERED_REPOS}.tmp" "${FILTERED_REPOS}"
+  fi
+done
+
+# Process each repository.
+while read -r gitdir; do
+  repo_dir="${gitdir%/.git}"
+  repo_name=$(basename "${repo_dir}")
+
+  # Skip if not a valid Git repository.
+  if [ ! -f "${gitdir}/config" ]; then
+    continue
+  fi
+
+  # Navigate to Git repository directory.
+  cd "${repo_dir}" || continue
+
+  # Count commits by the specified user.
+  commit_count=$(git log --author="$USER" --oneline | wc -l)
+
+  # Trim whitespace from commit count.
+  commit_count=$(echo "${commit_count}" | tr -d '[:space:]')
+
+  # Store result in file (repo_name:commit_count:repo_dir).
+  echo "${repo_name}:${commit_count}:${repo_dir}" >> "${RESULTS_FILE}"
+
+  # Update totals.
+  ((TOTAL_REPOS++))
+  ((TOTAL_COMMITS+=commit_count))
+
+  if [ "${commit_count}" -gt 0 ]; then
+    ((REPOS_WITH_COMMITS++))
+  fi
+
+  if [ "${commit_count}" -gt "${MAX_COMMITS}" ]; then
+    MAX_COMMITS=${commit_count}
+    MAX_COMMITS_REPO=${repo_name}
+  fi
+
+  # Display repository information if verbose (VERBOSE=true).
+  if [ "${VERBOSE}" = true ]; then
+    if [ "${commit_count}" -gt 0 ]; then
+      echo -e "${GREEN}${repo_name}:${NC} ${commit_count} commits"
+    else
+      echo -e "${YELLOW}${repo_name}:${NC} No commits"
+    fi
+  fi
+
+  # Return to original directory.
+  cd - > /dev/null
+done < "${FILTERED_REPOS}"
+
+# Clean up temporary find files.
+rm "${REPO_DATA_FILE}" "${FILTERED_REPOS}"
+
+# Sort and display results.
+if [ "${TOTAL_REPOS}" -gt 0 ]; then
+  echo ""
+  echo -e "${BLUE}Summary:${NC}"
+  echo "--------------------------------"
+  echo "Total repositories scanned: ${TOTAL_REPOS}"
+  echo "Repositories with commits: ${REPOS_WITH_COMMITS}"
+  echo "Total commits across all repositories: ${TOTAL_COMMITS}"
+
+  if [ "${MAX_COMMITS}" -gt 0 ]; then
+    echo -e "Most active repository: ${GREEN}${MAX_COMMITS_REPO}${NC} (${MAX_COMMITS} commits)"
+  fi
+
+  # Create a sorted results file for top N display.
+  SORTED_FILE=$(mktemp)
+
+  # Convert stored results to format suitable for sorting.
+  while read -r line; do
+    repo_name="${line%%:*}"
+    rest="${line#*:}"
+    commit_count="${rest%%:*}"
+    repo_path="${rest#*:}"
+    echo "${commit_count} ${repo_name} ${repo_path}" >> "${SORTED_FILE}"
+  done < "${RESULTS_FILE}"
+
+  # Sort results
+  sort -rn "${SORTED_FILE}" > "${SORTED_FILE}.sorted"
+  mv "${SORTED_FILE}.sorted" "${SORTED_FILE}"
+
+  echo ""
+  echo -e "${BLUE}Top ${TOP_N} repositories by commit count:${NC}"
+
+  # Display top N results.
+  head -n "${TOP_N}" "${SORTED_FILE}" | while read -r line; do
+    count=$(echo "${line}" | cut -d' ' -f1 | tr -d '[:space:]')
+    repo=$(echo "${line}" | cut -d' ' -f2 | tr -d '[:space:]')
+    path=$(echo "${line}" | cut -d' ' -f3- | sed 's/^ *//')
+
+    if [ "${count}" -gt 0 ]; then
+      # Show repository name and path if they differ significantly.
+      if [[ "${path}" == *"${repo}"* ]]; then
+        echo -e "${GREEN}${repo}:${NC} ${count} commits"
+      else
+        echo -e "${GREEN}${repo} (${path}):${NC} ${count} commits"
+      fi
+    fi
+  done
+
+  # Clean up temporary files.
+  rm "${RESULTS_FILE}" "${SORTED_FILE}"
+else
+  echo "No Git repositories found in $SCAN_DIR."
+  rm "${RESULTS_FILE}" 2>/dev/null || true
+fi
