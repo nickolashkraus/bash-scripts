@@ -1,11 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Print system info to the console.
+#   Print system info to the console.
 #
 # USAGE
+#   apple [OPTIONS]
 #
-#   apple [-c, --color]
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -c, --color    Whether to colorize output
+#
+# EXAMPLES
+#   None
 
 function usage {
   echo 'usage: apple [-c, --color]'

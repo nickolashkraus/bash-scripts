@@ -1,15 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Clone all Bitbucket repositories for the specified project.
+#   Clone all Bitbucket repositories for a given project.
 #
 # USAGE
+#   git-clone-bb [PROJECT_KEY] [CREDENTIALS]
 #
-#   git-clone-bb [project-key] [credentials]
+# ARGUMENTS
+#   PROJECT_KEY    Project key for the repository
+#   CREDENTIALS    Basic auth credentials
 #
-# EXAMPLE
-#
-#   git-clone-bb ABC xxxxxxxx
+# EXAMPLES
+#   git-clone-bb ABC xxxxxxxxxx
 
 function usage {
   echo 'usage: git-clone-bb [project-key] [credentials]'

@@ -1,15 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Create a URL slug from a string.
+#   Create a URL slug from a string.
+#   The string to slugify is retrieved from the Clipboard.
 #
 # USAGE
-#
 #   slugify
 #
-# ADDITIONAL INFORMATION
-# The string to slugify is retrieved from the Clipboard.
-
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   None
 function usage {
   echo 'usage: slugify'
 }

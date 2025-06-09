@@ -1,14 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Sort strings alphabetically.
+#   Sort strings alphabetically.
+#   The string to alphabetize is retrieved from the Clipboard.
 #
 # USAGE
-#
 #   abc
 #
-# ADDITIONAL INFORMATION
-# The string to alphabetize is retrieved from the Clipboard.
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   None
 
 function usage {
   echo 'usage: abc'

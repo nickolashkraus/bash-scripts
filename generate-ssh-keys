@@ -1,14 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Generates a public and private RSA key pair.
+#   Generates a public and private RSA key pair.
+#
+#   See the man pages for `ssh-keygen` for further details.
 #
 # USAGE
+#   generate-ssh-keys [OPTIONS]
 #
-#   generate-ssh-keys [-f output_keyfile]
+# OPTIONS
+#   -f FILE    Path to the output keyfile
 #
-# ADDITIONAL INFORMATION
-# See the man pages for `ssh-keygen` for further details.
+# EXAMPLES
+#   generate-ssh-keys -f id_rsa
 
 function usage {
   echo 'generate-ssh-keys [-f output_keyfile]'

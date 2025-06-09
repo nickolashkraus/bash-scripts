@@ -1,26 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Link Bash scripts to $HOME/bin.
+#   Link Bash scripts to $HOME/bin.
+#
+#   Add the following to your shell configuration file:
+#
+#     export PATH=$HOME/bin:$PATH
+#
+#   Link executables to $HOME/bin:
+#
+#     ./install
 #
 # USAGE
-#
 #   install
 #
-# ADDITIONAL INFORMATION
+# ARGUMENTS
+#   None
 #
-# Add the following to your shell configuration file:
+# OPTIONS
+#   None
 #
-#   ```bash
-#   export PATH=$HOME/bin:$PATH
-#   ```
-#
-# Link executables to `$HOME/bin`:
-#
-#   ```bash
-#   ./install
-#   ```
-
+# EXAMPLES
+#   None
 function usage {
   echo 'usage: install'
 }
