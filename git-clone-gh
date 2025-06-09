@@ -1,33 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Clone all GitHub repositories for the specified user or organization.
+#   Clone all GitHub repositories for a given user or organization.
+#
+#   GitHub recommends you use OAuth tokens to authenticate to the GitHub API.
+#   OAuth tokens include personal access tokens and enable the user to revoke
+#   access at any time.
+#
+#   NOTE: If resources are protected by organization SAML enforcement, you must
+#   grant your personal access token access to this organization.
+#
+#     * Personal access tokens > Configure SSO > Authorize
+#
+#   SEE ALSO:
+#     * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 #
 # USAGE
+#   git-clone-gh [OPTIONS] [TOKEN]
 #
-#   git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]
+# ARGUMENTS
+#   TOKEN    GitHub personal access token
 #
-# EXAMPLE
+# OPTIONS
+#   -u, --user             User's repositories to clone
+#   -o, --org              Organization's repositories to clone
+#   -i, --identity-file    File for the identity (private key) for public key
+#                          authentication (optional, defaults to id_rsa)
+#   -s, --skip-archived    Whether to skip archived repositories
 #
-#   git-clone-gh -u nickolashkraus
-#
-#   git-clone-gh -o Workiva
-#
-# ADDITIONAL INFORMATION
-#
-# GitHub recommends you use OAuth tokens to authenticate to the GitHub API.
-# OAuth tokens include personal access tokens and enable the user to revoke
-# access at any time.
-#
-# NOTE: If resources are protected by organization SAML enforcement, you must
-# grant your personal access token access to this organization.
-#
-#   * Personal access tokens > Configure SSO > Authorize
-#
-# SEE ALSO:
-#   * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
-#
-# TODO: Add option to write output to log file.
+# EXAMPLES
+#   git-clone-gh -u nickolashkraus ghp_xxx
+#   git-clone-gh -o Workiva ghp_xxx --skip-archived
 
 function usage {
   echo 'usage: git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]'

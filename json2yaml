@@ -1,11 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Convert JSON to YAML.
+#   Convert JSON to YAML.
 #
 # USAGE
+#   json2yaml [FILE]
 #
-#   json2yaml [file]
+# ARGUMENTS
+#   FILE    Path to JSON file
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   None
 
 function usage {
   echo 'usage: json2yaml [file]'

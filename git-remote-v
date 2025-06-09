@@ -1,11 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Show remotes for all Git repositories within a given directory.
+#   Show remotes for all Git repositories for a given directory.
 #
 # USAGE
+#   git-remote-v [DIR]
 #
-#   git-remote-v
+# ARGUMENTS
+#   DIR    Directory to use (optional, defaults to current directory)
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   None
 
 function usage {
   echo 'usage: git-remote-v'

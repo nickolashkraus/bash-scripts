@@ -1,29 +1,33 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Set user.name, user.email and remote host for each repository in the current
-# directory.
+#   Set user.name, user.email, and remote host for each repository in the
+#   current directory.
 #
-# USAGE
+#   The remote host can be used in conjunction with an SSH configuration file
+#   in order to manage multiple GitHub identities.
 #
-#   git-config-all [user.name] [user.email] [host]
+#     .ssh/config
 #
-# EXAMPLE
-#
-#   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
-#
-# ADDITIONAL INFORMATION
-# The remote host can be used in conjunction with an SSH configuration file
-# in order to manage multiple GitHub identities.
-#
-#   .ssh/config
-#
-#   # nickolaskraus-wf
-#   Host workiva.github.com
+#     # nickolaskraus-wf
+#     Host workiva.github.com
 #     HostName github.com
 #     PreferredAuthentications publickey
 #     IdentityFile ~/.ssh/id_rsa_workiva
-
+#
+# USAGE
+#   git-config-all [USERNAME] [EMAIL] [HOST]
+#
+# ARGUMENTS
+#   USERNAME    Username to set
+#   EMAIL       User email to set
+#   HOST        Remote Host to set
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
 
 function usage {
   echo 'usage: git-config-all [user.name] [user.email] [host]'

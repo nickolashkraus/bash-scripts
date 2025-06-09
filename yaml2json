@@ -1,17 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # DESCRIPTION
-# Convert YAML to JSON.
+#   Convert YAML to JSON.
 #
 # USAGE
+#   yaml2json [FILE]
 #
-#   yaml2json [file]
+# ARGUMENTS
+#   FILE    Path to YAML file
+#
+# OPTIONS
+#   None
+#
+# EXAMPLES
+#   None
 
 function usage {
   echo 'usage: yaml2json [file]'
   echo ''
   echo '  Arguments:'
-  echo '    file: JSON file to convert to YAML'
+  echo '    file: YAML file to convert to JSON'
 }
 
 if [ -z "${1}" ]; then

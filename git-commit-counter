@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
 #
 # DESCRIPTION
-# Scan all Git repositories in a directory and count how many commits have been
-# made by a given user. Allows excluding specific directories.
+#   Scan all Git repositories in a directory and count how many commits have
+#   been made by a given user. Allows excluding specific directories.
 #
 # USAGE
+#   git-commit-counter [OPTIONS]
 #
-#   git-commit-counter
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#  -u, --user USER          Git user email (optional, defaults to current user email)
+#  -d, --directory DIR      Directory to scan (optional, defaults to current directory)
+#  -n, --top-n NUM          Display the top N most active repositories (optional, defaults to 10)
+#  -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)
+#  -q, --quiet              Display only summary information
+#  -h, --help               Display this help message
+#
+# EXAMPLES
+#   git-commit-counter --user 0x@nickolaskraus.io -n 100
 
-# Configuration
 USER=""       # Commit author email. Defaults to the email set via global options.
 SCAN_DIR="."  # Directory to scan. Defaults to the current directory.
 TOP_N=10      # Top N most active repositories. Defaults to 10.
