@@ -15,6 +15,7 @@
 #
 # EXAMPLES
 #   None
+
 function usage {
   echo 'usage: slugify'
 }

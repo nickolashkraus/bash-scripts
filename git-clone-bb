@@ -10,6 +10,9 @@
 #   PROJECT_KEY    Project key for the repository
 #   CREDENTIALS    Basic auth credentials
 #
+# OPTIONS
+#   None
+#
 # EXAMPLES
 #   git-clone-bb ABC xxxxxxxxxx
 

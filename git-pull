@@ -15,10 +15,11 @@
 #                          authentication (optional, defaults to id_rsa)
 #   -d, --directory DIR    Directory to use (optional, defaults to current
 #                          directory)
+#
 # EXAMPLES
 #   git-pull
 #   git-pull -i id_rsa_workiva
-#
+
 function usage {
   echo 'usage: git-pull [-m, --master] [-i identity_file] [directory]'
   echo ''
