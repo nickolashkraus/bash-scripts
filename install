@@ -23,8 +23,9 @@
 # EXAMPLES
 #   None
 
+# Print usage information
 function usage {
-  echo 'usage: install'
+  echo "usage: $0"
 }
 
 mkdir -p "${HOME}"/bin

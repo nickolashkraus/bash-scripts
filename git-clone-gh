@@ -24,26 +24,27 @@
 # OPTIONS
 #   -u, --user             User's repositories to clone
 #   -o, --org              Organization's repositories to clone
-#   -i, --identity-file    File for the identity (private key) for public key
-#                          authentication (optional, defaults to id_rsa)
+#   -i, --identity-file    File for the identity (private key) for public key authentication
+#                          (optional, defaults to id_rsa)
 #   -s, --skip-archived    Whether to skip archived repositories
 #
 # EXAMPLES
 #   git-clone-gh -u nickolashkraus ghp_xxx
 #   git-clone-gh -o Workiva ghp_xxx --skip-archived
 
+# Print usage information
 function usage {
-  echo 'usage: git-clone-gh [-u, --user user] [-o, --org org] [-i identity_file] [access-token]'
-  echo ''
-  echo '  Arguments:'
-  echo '    access-token: Personal access token'
-  echo '      * The access token can be passed via a command-line argument or'
-  echo '        set via the environment variable GITHUB_API_TOKEN.'
-  echo ''
-  echo '  Options:'
-  echo "    -u, --user: Clone a user's repositories"
-  echo "    -o, --org: Clone an organization's repositories"
-  echo "    -i, --identity-file: File from which the identity (private key) for public key authentication is read."
+  echo "usage: $0 [OPTIONS] [TOKEN]"
+  echo ""
+  echo "Arguments:"
+  echo "  TOKEN    GitHub personal access token"
+  echo ""
+  echo "Options:"
+  echo "  -u, --user             User's repositories to clone"
+  echo "  -o, --org              Organization's repositories to clone"
+  echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
+  echo "                         (optional, defaults to id_rsa)"
+  echo "  -s, --skip-archived    Whether to skip archived repositories"
 }
 
 args=("$@")

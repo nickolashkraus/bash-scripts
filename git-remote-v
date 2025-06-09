@@ -15,8 +15,12 @@
 # EXAMPLES
 #   None
 
+# Print usage information
 function usage {
-  echo 'usage: git-remote-v'
+  echo "usage: $0 [DIR]"
+  echo ""
+  echo "Arguments:"
+  echo "  DIR    Directory to use (optional, defaults to current directory)"
 }
 
 dir="${1}"

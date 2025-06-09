@@ -16,8 +16,9 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: abc'
+# Print usage information
+function usage() {
+  echo "usage: $0"
 }
 
 if ! [ -x "$(command -v pbcopy)"  ]; then

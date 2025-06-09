@@ -15,11 +15,12 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: apple [-c, --color]'
-  echo ''
-  echo '  Options:'
-  echo '    -c, --color: print with color'
+# Print usage information
+function usage() {
+  echo "usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -c, --color    Whether to colorize output"
 }
 
 args=("$@")
