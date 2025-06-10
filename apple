@@ -11,40 +11,30 @@
 #
 # OPTIONS
 #   -c, --color    Whether to colorize output
+#   -h, --help     Show this help message
 #
 # EXAMPLES
 #   None
 
-# Print usage information
+# Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS]"
   echo ""
   echo "Options:"
   echo "  -c, --color    Whether to colorize output"
+  echo "  -h, --help     Show this help message"
   echo ""
 }
 
-args=("$@")
-
-for arg in "${args[@]}"; do
-  if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
-    if [[ "${arg}" =~ ^\-c$|^\-\-color$ ]]; then
-      color='true'
-    else
-      error='true'
-    fi
-  else
-    error='true'
-  fi
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -c|--color) color=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
 done
-
-if [ "${error}" == 'true' ]; then
-  echo -en "\033[0;31m"
-  echo "${arg} is not a valid option."
-  echo -en "\033[0m\n"
-  usage
-  exit 1
-fi
 
 user=$(whoami)
 hostname=$(hostname | sed 's/.local//g')

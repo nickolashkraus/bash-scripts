@@ -4,35 +4,47 @@
 #   Convert JSON to YAML.
 #
 # USAGE
-#   json2yaml [FILE]
+#   json2yaml [OPTIONS] FILE
 #
 # ARGUMENTS
 #   FILE    Path to JSON file
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   None
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [FILE]"
+  echo "usage: $0 [OPTIONS] FILE"
   echo ""
   echo "Arguments:"
   echo "  FILE    Path to JSON file"
   echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
 }
 
-if [ -z "${1}" ]; then
+file=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) file="$1"; shift; break ;;
+  esac
+done
+
+if [ -z "${file}" ]; then
   echo -en "\033[0;31m"
-  echo -e "Must specify a file.\n"
-  echo -en "\033[0m"
+  echo "ERROR: Must specify a file." >&2
+  echo -en "\033[0m\n"
   usage
   exit 1
 fi
-
-file="${1}"
 
 if [ ! -e "${file}" ]; then
   echo -en "\033[0;31m"
@@ -41,9 +53,9 @@ if [ ! -e "${file}" ]; then
   exit 1
 fi
 
-FILENAME=$(echo "${file}" | cut -f 1 -d '.')
+filename=$(echo "${file}" | cut -f 1 -d '.')
 
-PYTHON=$(cat << END
+python_script=$(cat << END
 import sys;
 import json;
 import yaml;
@@ -53,4 +65,4 @@ yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)
 END
 )
 
-python -c "${PYTHON}" < "${FILENAME}.json" > "${FILENAME}.yaml"
+python -c "${python_script}" < "${filename}.json" > "${filename}.yaml"

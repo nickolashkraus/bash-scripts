@@ -4,35 +4,47 @@
 #   Convert YAML to JSON.
 #
 # USAGE
-#   yaml2json [FILE]
+#   yaml2json [OPTIONS] FILE
 #
 # ARGUMENTS
 #   FILE    Path to YAML file
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   None
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [FILE]"
+  echo "usage: $0 [OPTIONS] FILE"
   echo ""
   echo "Arguments:"
   echo "  FILE    Path to YAML file"
   echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
 }
 
-if [ -z "${1}" ]; then
+file=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) file="$1"; shift; break ;;
+  esac
+done
+
+if [ -z "${file}" ]; then
   echo -en "\033[0;31m"
-  echo -e "Must specify a file.\n"
-  echo -en "\033[0m"
+  echo "ERROR: Must specify a file." >&2
+  echo -en "\033[0m\n"
   usage
   exit 1
 fi
-
-file="${1}"
 
 if [ ! -e "${file}" ]; then
   echo -en "\033[0;31m"

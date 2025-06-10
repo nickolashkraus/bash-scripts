@@ -19,7 +19,7 @@
 #   git-clone-gh [OPTIONS] [TOKEN]
 #
 # ARGUMENTS
-#   TOKEN    GitHub personal access token
+#   TOKEN    GitHub personal access token (can also be set via GITHUB_API_TOKEN)
 #
 # OPTIONS
 #   -u, --user             User's repositories to clone
@@ -27,12 +27,13 @@
 #   -i, --identity-file    File for the identity (private key) for public key authentication
 #                          (optional, defaults to id_rsa)
 #   -s, --skip-archived    Whether to skip archived repositories
+#   -h, --help             Show this help message
 #
 # EXAMPLES
 #   git-clone-gh -u nickolashkraus ghp_xxx
 #   git-clone-gh -o Workiva ghp_xxx --skip-archived
 
-# Print usage information
+# Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] [TOKEN]"
   echo ""
@@ -45,57 +46,46 @@ function usage() {
   echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
   echo "                         (optional, defaults to id_rsa)"
   echo "  -s, --skip-archived    Whether to skip archived repositories"
+  echo "  -h, --help             Show this help message"
   echo ""
 }
 
-args=("$@")
+user=""
+org=""
+identity_file="id_rsa"
+skip_archived=false
+access_token=""
 
-count=0
-for arg in "${args[@]}"; do
-  if [[ "${arg}" =~ ^\-.*|^\-\-.* ]]; then
-    if [[ "${arg}" =~ ^\-u$|^\-\-user$ ]]; then
-      user="${args[count+1]}"
-    elif [[ "${arg}" =~ ^\-o$|^\-\-org$ ]]; then
-      org="${args[count+1]}"
-    elif [[ "${arg}" =~ ^\-i$|^\-\-identity\-file$ ]]; then
-      identity_file="${args[count+1]}"
-    else
-      echo -en "\033[0;31m"
-      echo "${arg} is not a valid option."
-      echo -en "\033[0m\n"
-      usage
-      exit 1
-    fi
-  fi
-  count=$((count+1))
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -u|--user) user="$2"; shift 2 ;;
+    -o|--org) org="$2"; shift 2 ;;
+    -i|--identity-file) identity_file="$2"; shift 2 ;;
+    -s|--skip-archived) skip_archived=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) access_token="$1"; shift; break ;;
+  esac
 done
 
 # Error if 'user' and 'org' are either both set or not set.
 if { [ -n "${user}" ] && [ -n "${org}" ]; } || { [ -z "${user}" ] && [ -z "${org}" ]; }; then
   echo -en "\033[0;31m"
-  echo "ERROR: Specify either a user or organization."
+  echo "ERROR: Specify either a user or organization." >&2
   echo -en "\033[0m\n"
   usage
   exit 1
 fi
 
-# Check if 'identity_file' is set. If not, default to id_rsa.
-if [ -z "${identity_file}" ]; then
-  identity_file='id_rsa'
-fi
-
-# If there is an odd number of command-line arguments, the last argument is the
-# GitHub access token.
-if [ $(($# % 2)) == 1 ]; then
-  access_token="${args[$#-1]}"
-else
-  # Check if the access token is set via the environment variable.
+# If no access token provided as argument, check environment variable.
+if [ -z "${access_token}" ]; then
   access_token="${GITHUB_API_TOKEN}"
 fi
 
 if [ -z "${access_token}" ]; then
   echo -en "\033[0;31m"
-  echo "ERROR: Specify a GitHub access token."
+  echo "ERROR: Specify a GitHub access token." >&2
   echo -en "\033[0m\n"
   usage
   exit 1
@@ -113,20 +103,20 @@ if [ "${EXIT}" == "255" ]; then
   exit 1
 fi
 
-# Set RESOURCE and check if GitHub user/organization exists.
+# Set resource and check if GitHub user/organization exists.
 if [ -n "${user}" ]; then
-  RESOURCE="users/${user}/repos"
+  resource="users/${user}/repos"
   if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null ; then
     echo -en "\033[0;31m"
-    echo "ERROR: GitHub user does not exist."
+    echo "ERROR: GitHub user does not exist." >&2
     echo -en "\033[0m\n"
     exit 1
   fi
 elif [ -n "${org}" ]; then
-  RESOURCE="orgs/${org}/repos"
+  resource="orgs/${org}/repos"
   if ! curl --fail --silent "https://api.github.com/orgs/${org}" >/dev/null; then
     echo -en "\033[0;31m"
-    echo "ERROR: GitHub organization does not exist."
+    echo "ERROR: GitHub organization does not exist." >&2
     echo -en "\033[0m\n"
     exit 1
   fi
@@ -134,23 +124,23 @@ else
   exit 1
 fi
 
-# The GitHub API only returns 30 results. Therefore, increment PAGE until no
+# The GitHub API only returns 30 results. Therefore, increment page until no
 # results are returned.
-PAGE=1
-SSH_URLS=()
+page=1
+ssh_urls=()
 while true; do
   urls=($(curl -L --silent -X GET \
     --header "Authorization: Token ${access_token}" \
-    "https://api.github.com/${RESOURCE}?sort=full_name&page=${PAGE}" | jq '.[].ssh_url' | tr -d \"))
+    "https://api.github.com/${resource}?sort=full_name&page=${page}" | jq '.[].ssh_url' | tr -d \"))
   if [ ${#urls[@]} -eq 0 ]; then
     break
   else
-    SSH_URLS+=("${urls[@]}")
+    ssh_urls+=("${urls[@]}")
   fi
-  (( PAGE=PAGE+1 ))
+  (( page=page+1 ))
 done
 
-for ssh_url in "${SSH_URLS[@]}"; do
+for ssh_url in "${ssh_urls[@]}"; do
 
   echo Cloning "${ssh_url}"...
 
@@ -166,7 +156,7 @@ for ssh_url in "${SSH_URLS[@]}"; do
     echo -en "\033[0m"
   elif [[ "${output}" =~ 'SAML' ]]; then
     echo -en "\033[0;31m"
-    echo "ERROR: The '${org}' organization has enabled or enforced SAML SSO"
+    echo "ERROR: The '${org}' organization has enabled or enforced SAML SSO" >&2
     echo -en "\033[0m"
   fi
 

@@ -9,42 +9,46 @@
 #   generate-ssh-keys [OPTIONS]
 #
 # OPTIONS
-#   -f FILE    Path to the output keyfile
+#   -f FILE       Path to the output keyfile
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   generate-ssh-keys -f id_rsa
 
-# Print usage information
+# Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -f FILE    Path to the output keyfile"
+  echo "  -f FILE       Path to the output keyfile"
+  echo "  -h, --help    Show this help message"
   echo ""
 }
 
-if [ -z "${1}" ] || [ "${1}" != '-f' ]; then
+output_keyfile=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -f) output_keyfile="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+if [ -z "${output_keyfile}" ]; then
   echo -en "\033[0;31m"
-  echo "Specify a valid option (-f)."
+  echo "ERROR: Must specify an output keyfile with -f option." >&2
   echo -en "\033[0m\n"
   usage
   exit 1
 fi
 
-if [ -z "${2}" ]; then
+# Exit if a key pair of the name 'output_keyfile' already exists
+if [ -e "${output_keyfile}" ]; then
   echo -en "\033[0;31m"
-  echo "Specify an output keyfile."
-  echo -en "\033[0m\n"
-  usage
-  exit 1
-fi
-
-OUTPUT_KEYFILE=${2}
-
-# Exit if a key pair of the name 'OUTPUT_KEYFILE' already exists
-if [ -e "${OUTPUT_KEYFILE}" ]; then
-  echo -en "\033[0;31m"
-  echo "File already exists."
+  echo "File already exists." >&2
   echo -en "\033[0m"
   exit 1
 fi
@@ -55,7 +59,7 @@ if [ ! -d "${HOME}/.ssh" ]; then
 fi
 
 # Generate an RSA key pair
-ssh-keygen -b 2048 -t rsa -f "${HOME}/.ssh/${OUTPUT_KEYFILE}" -P ""
+ssh-keygen -b 2048 -t rsa -f "${HOME}/.ssh/${output_keyfile}" -P ""
 
 # Restrict access to the private key
-chmod 400 "${HOME}/.ssh/${OUTPUT_KEYFILE}"
+chmod 400 "${HOME}/.ssh/${output_keyfile}"

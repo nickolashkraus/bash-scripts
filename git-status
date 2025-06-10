@@ -4,27 +4,39 @@
 #   Show the status for all Git repositories for a given directory.
 #
 # USAGE
-#   git-status [DIR]
+#   git-status [OPTIONS] [DIR]
 #
 # ARGUMENTS
 #   DIR    Directory to use (optional, defaults to current directory)
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   None
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [DIR]"
+  echo "usage: $0 [OPTIONS] [DIR]"
   echo ""
   echo "Arguments:"
   echo "  DIR    Directory to use (optional, defaults to current directory)"
   echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
 }
 
-dir="${1}"
+dir=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) dir="$1"; shift; break ;;
+  esac
+done
 
 if [ -z "${dir}" ]; then
   dir="$(pwd)"
