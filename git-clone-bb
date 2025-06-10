@@ -17,12 +17,13 @@
 #   git-clone-bb ABC xxxxxxxxxx
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [PROJECT_KEY] [CREDENTIALS]"
   echo ""
   echo "Arguments:"
   echo "  PROJECT_KEY    Project key for the repository"
   echo "  CREDENTIALS    Basic auth credentials"
+  echo ""
 }
 
 if [ -z "${1}" ]; then

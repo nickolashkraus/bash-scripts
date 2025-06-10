@@ -33,7 +33,7 @@
 #   git-clone-gh -o Workiva ghp_xxx --skip-archived
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [OPTIONS] [TOKEN]"
   echo ""
   echo "Arguments:"
@@ -45,6 +45,7 @@ function usage {
   echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
   echo "                         (optional, defaults to id_rsa)"
   echo "  -s, --skip-archived    Whether to skip archived repositories"
+  echo ""
 }
 
 args=("$@")

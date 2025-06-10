@@ -30,13 +30,14 @@
 #   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [USERNAME] [EMAIL] [HOST]"
   echo ""
   echo "Arguments:"
   echo "  USERNAME    Username to set"
   echo "  EMAIL       User email to set"
   echo "  HOST        Remote Host to set"
+  echo ""
 }
 
 if [ -z "${1}" ]; then

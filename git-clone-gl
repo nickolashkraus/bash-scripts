@@ -30,12 +30,13 @@
 #   git-clone-gl Group xxxxxxxxxx
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [GROUP] [TOKEN]"
   echo ""
   echo "Arguments:"
   echo "  GROUP    GitLab group"
   echo "  TOKEN    GitLab personal access token"
+  echo ""
 }
 
 if [ -z "${1}" ]; then

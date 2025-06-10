@@ -24,8 +24,9 @@
 #   None
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0"
+  echo ""
 }
 
 mkdir -p "${HOME}"/bin

@@ -19,6 +19,7 @@
 # Print usage information
 function usage() {
   echo "usage: $0"
+  echo ""
 }
 
 if ! [ -x "$(command -v pbcopy)"  ]; then

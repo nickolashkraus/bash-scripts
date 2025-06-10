@@ -21,6 +21,7 @@ function usage() {
   echo ""
   echo "Options:"
   echo "  -c, --color    Whether to colorize output"
+  echo ""
 }
 
 args=("$@")

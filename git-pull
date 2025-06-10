@@ -20,17 +20,15 @@
 #   git-pull -i id_rsa_workiva
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [OPTIONS]"
-  echo ""
-  echo "Arguments:"
-  echo "  None"
   echo ""
   echo "Options:"
   echo "  -m, --master           Whether to checkout master or main before pulling"
   echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
   echo "                         (optional, defaults to id_rsa)"
   echo "  -d, --directory DIR    Directory to use (optional, defaults to current directory)"
+  echo ""
 }
 
 args=("$@")

@@ -16,11 +16,12 @@
 #   None
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [DIR]"
   echo ""
   echo "Arguments:"
   echo "  DIR    Directory to use (optional, defaults to current directory)"
+  echo ""
 }
 
 dir="${1}"
