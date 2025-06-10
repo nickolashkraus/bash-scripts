@@ -23,8 +23,10 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: install'
+# Print usage information
+function usage() {
+  echo "usage: $0"
+  echo ""
 }
 
 mkdir -p "${HOME}"/bin

@@ -14,8 +14,13 @@
 # EXAMPLES
 #   generate-ssh-keys -f id_rsa
 
-function usage {
-  echo 'generate-ssh-keys [-f output_keyfile]'
+# Print usage information
+function usage() {
+  echo "usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -f FILE    Path to the output keyfile"
+  echo ""
 }
 
 if [ -z "${1}" ] || [ "${1}" != '-f' ]; then

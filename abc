@@ -16,8 +16,10 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: abc'
+# Print usage information
+function usage() {
+  echo "usage: $0"
+  echo ""
 }
 
 if ! [ -x "$(command -v pbcopy)"  ]; then
@@ -30,7 +32,4 @@ if ! [ -x "$(command -v pbpaste)"  ]; then
   exit 1
 fi
 
-pbpaste > 'tmp'
-sort < 'tmp' > 'tmp.tmp'
-pbcopy < 'tmp.tmp'
-rm 'tmp' 'tmp.tmp'
+pbpaste | sort | pbcopy

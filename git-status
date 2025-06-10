@@ -15,8 +15,13 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: git-status'
+# Print usage information
+function usage() {
+  echo "usage: $0 [DIR]"
+  echo ""
+  echo "Arguments:"
+  echo "  DIR    Directory to use (optional, defaults to current directory)"
+  echo ""
 }
 
 dir="${1}"

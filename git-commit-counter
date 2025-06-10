@@ -46,17 +46,17 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Print usage information
-function usage {
+function usage() {
   echo "usage: $0 [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -u, --user USER        Specify Git user email (default: current user email)"
-  echo "  -d, --directory DIR    Specify directory to scan (default: current directory)"
-  echo "  -n, --top-n NUM        Display the top N most active repositories (default: 10)"
-  echo "  -e, --exclude PATTERN  Add a pattern to exclude (can be used multiple times)"
-  echo "  -q, --quiet            Display only summary information"
-  echo "  -h, --help             Display this help message"
-  exit 1
+  echo "  -u, --user USER          Git user email (optional, defaults to current user email)"
+  echo "  -d, --directory DIR      Directory to scan (optional, defaults to current directory)"
+  echo "  -n, --top-n NUM          Display the top N most active repositories (optional, defaults to 10)"
+  echo "  -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)"
+  echo "  -q, --quiet              Display only summary information"
+  echo "  -h, --help               Display this help message"
+  echo ""
 }
 
 # Parse command line arguments
@@ -89,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     *)
       echo "Unknown option: ${1}"
       usage
+      exit 1
       ;;
   esac
 done

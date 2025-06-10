@@ -15,11 +15,13 @@
 # EXAMPLES
 #   None
 
-function usage {
-  echo 'usage: yaml2json [file]'
-  echo ''
-  echo '  Arguments:'
-  echo '    file: YAML file to convert to JSON'
+# Print usage information
+function usage() {
+  echo "usage: $0 [FILE]"
+  echo ""
+  echo "Arguments:"
+  echo "  FILE    Path to YAML file"
+  echo ""
 }
 
 if [ -z "${1}" ]; then
