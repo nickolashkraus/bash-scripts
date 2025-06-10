@@ -16,51 +16,73 @@
 #   The access token can be passed via a command-line argument or set via the
 #   environment variable GITLAB_API_TOKEN.
 #
+#   NOTE: This script is specific to Granular.
+#
 # USAGE
-#   git-clone-gl [GROUP] [TOKEN]
+#   git-clone-gl [OPTIONS] GROUP [TOKEN]
 #
 # ARGUMENTS
 #   GROUP    GitLab group
-#   TOKEN    GitLab personal access token
+#   TOKEN    GitLab personal access token (can also be set via GITLAB_API_TOKEN)
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   git-clone-gl Group xxxxxxxxxx
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [GROUP] [TOKEN]"
+  echo "usage: $0 [OPTIONS] GROUP [TOKEN]"
   echo ""
   echo "Arguments:"
   echo "  GROUP    GitLab group"
   echo "  TOKEN    GitLab personal access token"
   echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
 }
 
-if [ -z "${1}" ]; then
+group=""
+access_token=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *)
+      if [ -z "${group}" ]; then
+        group="$1"
+      elif [ -z "${access_token}" ]; then
+        access_token="$1"
+      else
+        echo "Too many arguments: $1" >&2; usage; exit 1
+      fi
+      shift ;;
+  esac
+done
+
+if [ -z "${group}" ]; then
   echo -en "\033[0;31m"
-  echo "Specify a group."
+  echo "ERROR: Must specify a group." >&2
   echo -en "\033[0m\n"
   usage
   exit 1
-else
-  group="${1}"
 fi
 
-if [ -z "${2}" ]; then
-  if [ -z "${GITLAB_API_TOKEN}" ]; then
-    echo -en "\033[0;31m"
-    echo "Specify an access token."
-    echo -en "\033[0m\n"
-    usage
-    exit 1
-  else
-    access_token="${GITLAB_API_TOKEN}"
-  fi
-else
-  access_token="${2}"
+# If no access token provided as argument, check environment variable
+if [ -z "${access_token}" ]; then
+  access_token="${GITLAB_API_TOKEN}"
+fi
+
+if [ -z "${access_token}" ]; then
+  echo -en "\033[0;31m"
+  echo "ERROR: Must specify a GitLab access token." >&2
+  echo -en "\033[0m\n"
+  usage
+  exit 1
 fi
 
 eval $(ssh-agent -s) >/dev/null 2>&1 && \
@@ -79,25 +101,25 @@ fi
 group=$(echo "${group}" | sed "s/\//%2f/")
 
 # The GitLab API returns a maximum of 100 results per page. Therefore, we
-# increment PAGE until no results are returned.
-PAGE=1
-SSH_URLS=()
+# increment page until no results are returned.
+page=1
+ssh_urls=()
 while true; do
   urls=($(curl -L --silent -X GET \
     --header "Authorization: Bearer ${access_token}" \
-    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${PAGE}&order_by=name&with_shared=false" \
+    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" \
     | jq '.[].ssh_url_to_repo' \
     | tr -d \"))
 
   if [ ${#urls[@]} -eq 0 ]; then
     break
   else
-    SSH_URLS+=("${urls[@]}")
+    ssh_urls+=("${urls[@]}")
   fi
-  (( PAGE=PAGE+1 ))
+  (( page=page+1 ))
 done
 
-for ssh_url in "${SSH_URLS[@]}"; do
+for ssh_url in "${ssh_urls[@]}"; do
 
   echo Cloning "${ssh_url}"...
 

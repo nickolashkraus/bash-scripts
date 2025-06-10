@@ -12,22 +12,34 @@
 #     ./install
 #
 # USAGE
-#   install
+#   install [OPTIONS]
 #
 # ARGUMENTS
 #   None
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   None
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0"
+  echo "usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
   echo ""
 }
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
 
 mkdir -p "${HOME}"/bin
 

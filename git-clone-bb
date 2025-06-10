@@ -4,53 +4,76 @@
 #   Clone all Bitbucket repositories for a given project.
 #
 # USAGE
-#   git-clone-bb [PROJECT_KEY] [CREDENTIALS]
+#   git-clone-bb [OPTIONS] PROJECT_KEY CREDENTIALS
 #
 # ARGUMENTS
 #   PROJECT_KEY    Project key for the repository
 #   CREDENTIALS    Basic auth credentials
 #
 # OPTIONS
-#   None
+#   -h, --help    Show this help message
 #
 # EXAMPLES
 #   git-clone-bb ABC xxxxxxxxxx
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [PROJECT_KEY] [CREDENTIALS]"
+  echo "usage: $0 [OPTIONS] PROJECT_KEY CREDENTIALS"
   echo ""
   echo "Arguments:"
   echo "  PROJECT_KEY    Project key for the repository"
   echo "  CREDENTIALS    Basic auth credentials"
   echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
 }
 
-if [ -z "${1}" ]; then
+project_key=""
+credentials=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *)
+      if [ -z "${project_key}" ]; then
+        project_key="$1"
+      elif [ -z "${credentials}" ]; then
+        credentials="$1"
+      else
+        echo "Too many arguments: $1" >&2; usage; exit 1
+      fi
+      shift ;;
+  esac
+done
+
+if [ -z "${project_key}" ]; then
   echo -en "\033[0;31m"
-  echo "Specify a project key."
+  echo "ERROR: Must specify a project key." >&2
   echo -en "\033[0m"
   usage
   exit 1
 fi
 
-if [ -z "${2}" ]; then
+if [ -z "${credentials}" ]; then
   echo -en "\033[0;31m"
-  echo "Provide basic auth credentials."
+  echo "ERROR: Must provide basic auth credentials." >&2
   echo -en "\033[0m"
   usage
   exit 1
 fi
 
-RESOURCE="https://bitbucket.dwolla.net/rest/api/1.0/projects/${1}/repos?limit=2048"
+resource="https://bitbucket.dwolla.net/rest/api/1.0/projects/${project_key}/repos?limit=2048"
 
-SSH_URLS=($(curl -s -X GET \
-  -H "Authorization: Basic${2}" \
-  -H "Content-Type: application/json" "${RESOURCE}" | \
+ssh_urls=($(curl -s -X GET \
+  -H "Authorization: Basic${credentials}" \
+  -H "Content-Type: application/json" "${resource}" | \
   jq '.values[].links.clone[] | select(.name == "ssh") | .href' \
   | tr -d \"))
 
-for ssh_url in "${SSH_URLS[@]}"; do
+for ssh_url in "${ssh_urls[@]}"; do
 
   echo Cloning "${ssh_url}"...
 
