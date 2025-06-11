@@ -118,6 +118,13 @@ else
   exit 1
 fi
 
+# Build jq filter based on --skip-archived option.
+if [ "${skip_archived}" == true ]; then
+  jq_filter='.[] | select(.archived == false) | .ssh_url'
+else
+  jq_filter='.[].ssh_url'
+fi
+
 # The GitHub API only returns 30 results. Therefore, increment page until no
 # results are returned.
 page=1
@@ -125,7 +132,8 @@ ssh_urls=()
 while true; do
   urls=($(curl -L --silent -X GET \
     --header "Authorization: Token ${access_token}" \
-    "https://api.github.com/${resource}?sort=full_name&page=${page}" | jq '.[].ssh_url' | tr -d \"))
+    "https://api.github.com/${resource}?sort=full_name&page=${page}" | \
+    jq -r "${jq_filter}"))
   if [ ${#urls[@]} -eq 0 ]; then
     break
   else
