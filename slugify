@@ -16,6 +16,10 @@
 # EXAMPLES
 #   None
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS]"
@@ -35,12 +39,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if ! [ -x "$(command -v pbcopy)"  ]; then
-  echo 'Error: pbcopy is not installed.' >&2
+  echo -e "${red}ERROR: pbcopy is not installed.${reset}" >&2
   exit 1
 fi
 
 if ! [ -x "$(command -v pbpaste)"  ]; then
-  echo 'Error: pbpaste is not installed.' >&2
+  echo -e "${red}ERROR: pbpaste is not installed.${reset}" >&2
   exit 1
 fi
 

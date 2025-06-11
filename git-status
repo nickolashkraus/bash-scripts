@@ -15,6 +15,12 @@
 # EXAMPLES
 #   None
 
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] [DIR]"
@@ -42,9 +48,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -en "\033[0;31m"
-    echo "${dir} does not exist."
-    echo -en "\033[0m\n"
+    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
     exit 1
   fi
 fi
@@ -56,9 +60,7 @@ for d in "${dir}"/*; do
   basename "${d}"
 
   if [ ! -d "${d}/.git" ]; then
-    echo -en "\033[0;31m"
-    echo "$(basename "${d}") is not a Git repository."
-    echo -en "\033[0m"
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
 
@@ -67,21 +69,13 @@ for d in "${dir}"/*; do
   output=$(git status 2>&1)
 
   if [[ "${output}" =~ modified ]]; then
-    echo -en "\033[0;31m" # display red
-    echo "Modified files"
-    echo -en "\033[0m"
+    echo -e "${red}Modified files${reset}"
   elif [[ "${output}" =~ untracked ]]; then
-    echo -en "\033[0;31m" # display red
-    echo "Untracked files"
-    echo -en "\033[0m"
+    echo -e "${red}Untracked files${reset}"
   elif [[ "${output}" =~ ahead ]]; then
-    echo -en "\033[0;33m" # display yellow
-    echo "Use \"git push\" to publish your local commits"
-    echo -en "\033[0m"
+    echo -e "${yellow}Use \"git push\" to publish your local commits${reset}"
   else
-    echo -en "\033[0;32m" # display green
-    echo "Working tree clean."
-    echo -en "\033[0m"
+    echo -e "${green}Working tree clean.${reset}"
   fi
 
   popd >/dev/null || exit

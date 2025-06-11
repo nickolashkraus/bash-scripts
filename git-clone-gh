@@ -33,6 +33,10 @@
 #   git-clone-gh -u nickolashkraus ghp_xxx
 #   git-clone-gh -o Workiva ghp_xxx --skip-archived
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] [TOKEN]"
@@ -71,9 +75,7 @@ done
 
 # Error if 'user' and 'org' are either both set or not set.
 if { [ -n "${user}" ] && [ -n "${org}" ]; } || { [ -z "${user}" ] && [ -z "${org}" ]; }; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Specify either a user or organization." >&2
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: Specify either a user or organization.${reset}" >&2
   usage
   exit 1
 fi
@@ -84,9 +86,7 @@ if [ -z "${access_token}" ]; then
 fi
 
 if [ -z "${access_token}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Specify a GitHub access token." >&2
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: Specify a GitHub access token.${reset}" >&2
   usage
   exit 1
 fi
@@ -97,9 +97,7 @@ eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
 trap 'ssh git@github.com >/dev/null 2>&1 || EXIT=$?' ERR
 
 if [ "${EXIT}" == "255" ]; then
-  echo -en "\033[0;31m"
-  echo "Permission denied (publickey)."
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Permission denied (publickey).${reset}" >&2
   exit 1
 fi
 
@@ -107,17 +105,13 @@ fi
 if [ -n "${user}" ]; then
   resource="users/${user}/repos"
   if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null ; then
-    echo -en "\033[0;31m"
-    echo "ERROR: GitHub user does not exist." >&2
-    echo -en "\033[0m\n"
+    echo -e "${red}ERROR: GitHub user does not exist.${reset}" >&2
     exit 1
   fi
 elif [ -n "${org}" ]; then
   resource="orgs/${org}/repos"
   if ! curl --fail --silent "https://api.github.com/orgs/${org}" >/dev/null; then
-    echo -en "\033[0;31m"
-    echo "ERROR: GitHub organization does not exist." >&2
-    echo -en "\033[0m\n"
+    echo -e "${red}ERROR: GitHub organization does not exist.${reset}" >&2
     exit 1
   fi
 else
@@ -147,17 +141,11 @@ for ssh_url in "${ssh_urls[@]}"; do
   output=$(git clone "${ssh_url}" 2>&1)
 
   if [[ "${output}" =~ 'already exists' ]]; then
-    echo -en "\033[0;31m"
-    echo "Repository already exists."
-    echo -en "\033[0m"
+    echo -e "${red}Repository already exists.${reset}"
   elif [[ "${output}" =~ 'not found' ]]; then
-    echo -en "\033[0;31m"
-    echo "Please make sure you have the correct access rights and the repository exists."
-    echo -en "\033[0m"
+    echo -e "${red}Please make sure you have the correct access rights and the repository exists.${reset}"
   elif [[ "${output}" =~ 'SAML' ]]; then
-    echo -en "\033[0;31m"
-    echo "ERROR: The '${org}' organization has enabled or enforced SAML SSO" >&2
-    echo -en "\033[0m"
+    echo -e "${red}ERROR: The '${org}' organization has enabled or enforced SAML SSO${reset}" >&2
   fi
 
 done

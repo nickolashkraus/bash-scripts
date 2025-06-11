@@ -15,6 +15,11 @@
 # EXAMPLES
 #   None
 
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] [DIR]"
@@ -42,9 +47,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -en "\033[0;31m"
-    echo "${dir} does not exist."
-    echo -en "\033[0m\n"
+    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
     exit 1
   fi
 fi
@@ -56,17 +59,15 @@ for d in "${dir}"/*; do
   basename "${d}"
 
   if [ ! -d "${d}/.git" ]; then
-    echo -en "\033[0;31m"
-    echo "$(basename "${d}") is not a Git repository."
-    echo -en "\033[0m"
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
 
   pushd "${d}" >/dev/null || exit
 
-  echo -en "\033[0;32m" # display green
+  echo -e "${green}"
   git remote -v
-  echo -en "\033[0m"
+  echo -e "${reset}"
 
   popd >/dev/null || exit
 
