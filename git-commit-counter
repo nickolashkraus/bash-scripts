@@ -40,6 +40,7 @@ exclude_patterns=(
 )
 
 # Colors
+red='\033[0;31m'
 green='\033[0;32m'
 yellow='\033[0;33m'
 blue='\033[0;34m'
@@ -96,7 +97,7 @@ done
 
 # Ensure the scan directory exists.
 if [ ! -d "${scan_dir}" ]; then
-  echo "Error: Directory '${scan_dir}' does not exist."
+  echo -e "${red}ERROR: Directory '${scan_dir}' does not exist.${reset}" >&2
   exit 1
 fi
 
@@ -107,8 +108,8 @@ scan_dir=$(cd "${scan_dir}" && pwd)
 if [ -z "${user}" ]; then
   user=$(git config user.email)
   if [ -z "${user}" ]; then
-    echo "Error: No user email specified and \`git config user.email\` is not set."
-    echo "Please specify an email with --user or configure git."
+    echo -e "${red}ERROR: No user email specified and \`git config user.email\` is not set.${reset}" >&2
+    echo -e "${red}Please specify an email with --user or configure git.${reset}" >&2
     exit 1
   fi
 fi

@@ -15,6 +15,10 @@
 # EXAMPLES
 #   None
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] FILE"
@@ -39,17 +43,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${file}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a file." >&2
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: Must specify a file.${reset}" >&2
   usage
   exit 1
 fi
 
 if [ ! -e "${file}" ]; then
-  echo -en "\033[0;31m"
-  echo "${file} does not exist."
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: ${file} does not exist.${reset}" >&2
   exit 1
 fi
 

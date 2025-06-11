@@ -29,6 +29,10 @@
 # EXAMPLES
 #   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] USERNAME EMAIL HOST"
@@ -67,25 +71,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${user_name}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a user name." >&2
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Must specify a user name.${reset}" >&2
   usage
   exit 1
 fi
 
 if [ -z "${user_email}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a user email." >&2
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Must specify a user email.${reset}" >&2
   usage
   exit 1
 fi
 
 if [ -z "${host}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a remote host." >&2
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Must specify a remote host.${reset}" >&2
   usage
   exit 1
 fi

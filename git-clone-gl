@@ -31,6 +31,10 @@
 # EXAMPLES
 #   git-clone-gl Group xxxxxxxxxx
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] GROUP [TOKEN]"
@@ -65,9 +69,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${group}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a group." >&2
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: Must specify a group.${reset}" >&2
   usage
   exit 1
 fi
@@ -78,9 +80,7 @@ if [ -z "${access_token}" ]; then
 fi
 
 if [ -z "${access_token}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a GitLab access token." >&2
-  echo -en "\033[0m\n"
+  echo -e "${red}ERROR: Must specify a GitLab access token.${reset}" >&2
   usage
   exit 1
 fi
@@ -91,9 +91,7 @@ eval $(ssh-agent -s) >/dev/null 2>&1 && \
 ssh git@gitlab.internal.granular.ag >/dev/null 2>&1
 
 if [ $? -eq 255 ]; then
-  echo -en "\033[0;31m"
-  echo "Permission denied (publickey)."
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Permission denied (publickey).${reset}" >&2
   exit 1
 fi
 
@@ -126,9 +124,7 @@ for ssh_url in "${ssh_urls[@]}"; do
   output=$(git clone "${ssh_url}" 2>&1)
 
   if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
-    echo -en "\033[0;31m"
-    echo "Repository already exists."
-    echo -en "\033[0m"
+    echo -e "${red}Repository already exists.${reset}"
   fi
 
 done

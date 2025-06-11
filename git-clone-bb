@@ -16,6 +16,10 @@
 # EXAMPLES
 #   git-clone-bb ABC xxxxxxxxxx
 
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS] PROJECT_KEY CREDENTIALS"
@@ -50,17 +54,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${project_key}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must specify a project key." >&2
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Must specify a project key.${reset}" >&2
   usage
   exit 1
 fi
 
 if [ -z "${credentials}" ]; then
-  echo -en "\033[0;31m"
-  echo "ERROR: Must provide basic auth credentials." >&2
-  echo -en "\033[0m"
+  echo -e "${red}ERROR: Must provide basic auth credentials.${reset}" >&2
   usage
   exit 1
 fi
@@ -80,9 +80,7 @@ for ssh_url in "${ssh_urls[@]}"; do
   output=$(git clone "${ssh_url}" 2>&1)
 
   if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
-    echo -en "\033[0;31m"
-    echo "Repository already exists."
-    echo -en "\033[0m"
+    echo -e "${red}Repository already exists.${reset}"
   fi
 
 done

@@ -20,6 +20,12 @@
 #   git-pull
 #   git-pull -i id_rsa_workiva
 
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+reset='\033[0m'
+
 # Print usage information.
 function usage() {
   echo "usage: $0 [OPTIONS]"
@@ -53,9 +59,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -en "\033[0;31m"
-    echo "${dir} does not exist."
-    echo -en "\033[0m\n"
+    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
     exit 1
   fi
 fi
@@ -70,9 +74,7 @@ for d in "${dir}"/*; do
   basename "${d}"
 
   if [ ! -d "${d}/.git" ]; then
-    echo -en "\033[0;31m"
-    echo "$(basename "${d}") is not a Git repository."
-    echo -en "\033[0m"
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
 
@@ -81,30 +83,22 @@ for d in "${dir}"/*; do
   if [ "${master}" == true ]; then
     output=$(git checkout master 2>&1)
     if [ $? -ne 0 ]; then
-      echo -en "\033[0;31m" # display red
-      echo "Branch 'master' does not exist."
-      echo -en "\033[0m"
+      echo -e "${red}Branch 'master' does not exist.${reset}"
       output=$(git checkout main 2>&1)
       if [ $? -ne 0 ]; then
-        echo -en "\033[0;31m" # display red
-        echo "Branch 'main' does not exist."
-        echo -en "\033[0m"
+        echo -e "${red}Branch 'main' does not exist.${reset}"
         continue
       else
         output=$(git branch --set-upstream-to=origin/main main 2>&1)
         if [[ "${output}" =~ error ]]; then
-          echo -en "\033[0;31m" # display red
-          echo "The requested upstream branch 'origin/main' does not exist."
-          echo -en "\033[0m"
+          echo -e "${red}The requested upstream branch 'origin/main' does not exist.${reset}"
           continue
         fi
       fi
     else
         output=$(git branch --set-upstream-to=origin/master master 2>&1)
         if [[ "${output}" =~ error ]]; then
-          echo -en "\033[0;31m" # display red
-          echo "The requested upstream branch 'origin/main' does not exist."
-          echo -en "\033[0m"
+          echo -e "${red}The requested upstream branch 'origin/master' does not exist.${reset}"
           continue
         fi
     fi
@@ -114,31 +108,24 @@ for d in "${dir}"/*; do
 
   # Already up to date.
   if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
-    echo -en "\033[0;32m" # display green
-    echo "Already up to date."
-    echo -en "\033[0m"
+    echo -e "${green}Already up to date.${reset}"
   # Successfully rebased and updated
   elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
-    echo -en "\033[0;32m" # display green
-    echo "Successfully rebased and updated"
-    echo -en "\033[0m"
+    echo -e "${green}Successfully rebased and updated${reset}"
   # There is no tracking information for the current branch.
   elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
-    echo -en "\033[0;33m" # display yellow
-    echo "There is no tracking information for the current branch."
+    echo -e "${yellow}There is no tracking information for the current branch."
     git branch | grep "\*"
-    echo -en "\033[0m"
+    echo -e "${reset}"
   # Updating abc1234..def5678
   elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]+\.\.[a-f0-9]+ ]]; then
-    echo -en "\033[0;33m" # display yellow
-    echo "Updating"
+    echo -e "${yellow}Updating"
     echo "${output}"
-    echo -en "\033[0m"
+    echo -e "${reset}"
   else
-    echo -en "\033[0;31m" # display red
-    echo "Error"
+    echo -e "${red}Error"
     echo "${output}"
-    echo -en "\033[0m"
+    echo -e "${reset}"
   fi
 
   popd >/dev/null || exit

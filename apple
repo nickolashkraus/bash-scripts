@@ -26,6 +26,8 @@ function usage() {
   echo ""
 }
 
+color=false
+
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -35,6 +37,17 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+# Colors
+if [ "${color}" == "true" ]; then
+  red='\033[0;31m'
+  orange='\033[1;31m'
+  green='\033[0;32m'
+  yellow='\033[0;33m'
+  blue='\033[0;34m'
+  purple='\033[0;35m'
+  reset='\033[0m'
+fi
 
 user=$(whoami)
 hostname=$(hostname | sed 's/.local//g')
@@ -117,37 +130,29 @@ mem=$(sysctl -n hw.memsize)
 ram="$((mem/1073741824)) GB"
 disk=$(df | head -2 | tail -1 | awk '{print $5}')
 
-if [ "${color}" == "true" ]; then
-  GREEN="\033[0;32m"
-  YELLOW="\033[0;33m"
-  ORANGE="\033[1;31m"
-  RED="\033[0;31m"
-  PURPLE="\033[0;35m"
-  BLUE="\033[0;34m"
-fi
-
 echo -en "
-${GREEN}                              .8
-${GREEN}                            .888
-${GREEN}                          .8888'
-${GREEN}                         .8888'
-${GREEN}                         888'
-${GREEN}                         8'
-${YELLOW}            .88888888888. .88888888888.
-${YELLOW}         .888888888888888888888888888888.         User: ${user}
-${YELLOW}       .8888888888888888888888888888888888.       Hostname: ${hostname}
-${ORANGE}      .&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'         Version: ${version} ${version_string}
-${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'           Kernel: ${kernel}
-${ORANGE}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'            Uptime: ${uptime}
-${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.            Shell: ${shell}
-${RED}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.           Terminal: ${terminal}
-${RED}      \`%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.         Packages: ${packages}
-${PURPLE}       \`0000000000000000000000000000000000'       CPU: ${cpu}
-${PURPLE}        \`00000000000000000000000000000000'        Memory: ${ram}
-${PURPLE}          \`############################'          Disk Used: ${disk}
-${BLUE}            \`########################'            Internal IP: ${int_ip_addr}
-${BLUE}              \`#########''#########'              External IP: ${ext_ip_addr}
-${BLUE}                \`\"\"\"\"\"\"'  \`\"\"\"\"\"\"'
+${green}                              .8
+${green}                            .888
+${green}                          .8888'
+${green}                         .8888'
+${green}                         888'
+${green}                         8'
+${yellow}            .88888888888. .88888888888.
+${yellow}         .888888888888888888888888888888.         User: ${user}
+${yellow}       .8888888888888888888888888888888888.       Hostname: ${hostname}
+${orange}      .&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'         Version: ${version} ${version_string}
+${orange}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'           Kernel: ${kernel}
+${orange}      &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'            Uptime: ${uptime}
+${red}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.            Shell: ${shell}
+${red}      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.           Terminal: ${terminal}
+${red}      \`%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.         Packages: ${packages}
+${purple}       \`0000000000000000000000000000000000'       CPU: ${cpu}
+${purple}        \`00000000000000000000000000000000'        Memory: ${ram}
+${purple}          \`############################'          Disk Used: ${disk}
+${blue}            \`########################'            Internal IP: ${int_ip_addr}
+${blue}              \`#########''#########'              External IP: ${ext_ip_addr}
+${blue}                \`\"\"\"\"\"\"'  \`\"\"\"\"\"\"'
+${reset}
 "
 
 tput sgr0
