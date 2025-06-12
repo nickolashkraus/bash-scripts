@@ -35,7 +35,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] USERNAME EMAIL HOST"
+  echo "usage: git-config-all [OPTIONS] USERNAME EMAIL HOST"
   echo ""
   echo "Arguments:"
   echo "  USERNAME    Username to set"
@@ -88,13 +88,18 @@ if [ -z "${host}" ]; then
   exit 1
 fi
 
-for d in *; do \
+if ! [ -x "$(command -v gsed)" ]; then
+  echo -e "${red}ERROR: gsed is not installed.${reset}" >&2
+  exit 1
+fi
+
+for d in *; do
   if [ -d "${d}" ]; then
     pushd "${d}" >/dev/null || exit
     git config user.name "${user_name}" && \
     git config user.email "${user_email}"
-    orl_url="$(git remote get-url origin)"
-    new_url=$(echo "${orl_url}" | gsed -E "s/@(.*):/@${host}:/")
+    old_url="$(git remote get-url origin)"
+    new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/")
     git remote set-url origin "${new_url}"
     popd >/dev/null || exit
   fi

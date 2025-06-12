@@ -22,7 +22,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS]"
+  echo "usage: slugify [OPTIONS]"
   echo ""
   echo "Options:"
   echo "  -h, --help    Show this help message"
@@ -38,12 +38,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! [ -x "$(command -v pbcopy)"  ]; then
+if ! [ -x "$(command -v pbcopy)" ]; then
   echo -e "${red}ERROR: pbcopy is not installed.${reset}" >&2
   exit 1
 fi
 
-if ! [ -x "$(command -v pbpaste)"  ]; then
+if ! [ -x "$(command -v pbpaste)" ]; then
   echo -e "${red}ERROR: pbpaste is not installed.${reset}" >&2
   exit 1
 fi
@@ -54,4 +54,10 @@ fi
 # 3. Deduplicate hyphens ('--' >>> '-')
 # 4. Change all characters to lowercase
 # 5. Remove trailing newline ('\n')
-pbpaste | sed 's/[ ]/\-/g' | sed 's/[,;/?:@=&]//g' | sed -E 's/[\-]{2,}/\-/g' | awk '{print tolower($1)}' | tr -d '\n' | pbcopy
+pbpaste | \
+  sed 's/[ ]/-/g' | \
+  sed 's/[,;/?:@=&]//g' | \
+  sed -E 's/[-]{2,}/-/g' | \
+  awk '{print tolower($1)}' | \
+  tr -d '\n' | \
+  pbcopy

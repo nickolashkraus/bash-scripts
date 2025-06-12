@@ -22,7 +22,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] PROJECT_KEY CREDENTIALS"
+  echo "usage: git-clone-bb [OPTIONS] PROJECT_KEY CREDENTIALS"
   echo ""
   echo "Arguments:"
   echo "  PROJECT_KEY    Project key for the repository"
@@ -67,20 +67,18 @@ fi
 
 resource="https://bitbucket.dwolla.net/rest/api/1.0/projects/${project_key}/repos?limit=2048"
 
-ssh_urls=($(curl -s -X GET \
-  -H "Authorization: Basic${credentials}" \
-  -H "Content-Type: application/json" "${resource}" | \
-  jq '.values[].links.clone[] | select(.name == "ssh") | .href' \
-  | tr -d \"))
+mapfile -t ssh_urls <<EOF_SSH_URLS
+$(curl -s -X GET \
+  -H "Authorization: Basic ${credentials}" \
+  -H "Content-Type: application/json" \
+  "${resource}" | \
+  jq -r '.values[].links.clone[] | select(.name == "ssh") | .href')
+EOF_SSH_URLS
 
 for ssh_url in "${ssh_urls[@]}"; do
-
   echo Cloning "${ssh_url}"...
-
   output=$(git clone "${ssh_url}" 2>&1)
-
-  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
+  if echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
   fi
-
 done

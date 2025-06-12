@@ -21,7 +21,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] FILE"
+  echo "usage: yaml2json [OPTIONS] FILE"
   echo ""
   echo "Arguments:"
   echo "  FILE    Path to YAML file"
@@ -53,9 +53,9 @@ if [ ! -e "${file}" ]; then
   exit 1
 fi
 
-FILENAME=$(echo "${file}" | cut -f 1 -d '.')
+filename=$(echo "${file}" | cut -f 1 -d '.')
 
-PYTHON=$(cat << END
+python_script=$(cat << END
 import sys;
 import json;
 import yaml;
@@ -65,4 +65,4 @@ json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)
 END
 )
 
-python -c "${PYTHON}" < "${1}" > "${FILENAME}.json"
+python -c "${python_script}" < "${file}" > "${filename}.json"

@@ -39,7 +39,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] [TOKEN]"
+  echo "usage: git-clone-gh [OPTIONS] [TOKEN]"
   echo ""
   echo "Arguments:"
   echo "  TOKEN    GitHub personal access token"
@@ -63,9 +63,9 @@ access_token=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u|--user) user="$2"; shift 2 ;;
-    -o|--org) org="$2"; shift 2 ;;
-    -i|--identity-file) identity_file="$2"; shift 2 ;;
+    -u|--user) user=$2; shift 2 ;;
+    -o|--org) org=$2; shift 2 ;;
+    -i|--identity-file) identity_file=$2; shift 2 ;;
     -s|--skip-archived) skip_archived=true; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
@@ -94,9 +94,8 @@ fi
 eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 
-trap 'ssh git@github.com >/dev/null 2>&1 || EXIT=$?' ERR
-
-if [ "${EXIT}" == "255" ]; then
+# Test SSH connection to GitHub.
+if ! ssh -T git@github.com >/dev/null 2>&1; then
   echo -e "${red}ERROR: Permission denied (publickey).${reset}" >&2
   exit 1
 fi
@@ -130,33 +129,30 @@ fi
 page=1
 ssh_urls=()
 while true; do
-  urls=($(curl -L --silent -X GET \
-    --header "Authorization: Token ${access_token}" \
-    "https://api.github.com/${resource}?sort=full_name&page=${page}" | \
-    jq -r "${jq_filter}"))
+  mapfile -t urls <<EOF_URLS
+$(curl -L --silent -X GET \
+  --header "Authorization: Token ${access_token}" \
+  "https://api.github.com/${resource}?sort=full_name&page=${page}" | \
+  jq -r "${jq_filter}")
+EOF_URLS
   if [ ${#urls[@]} -eq 0 ]; then
     break
-  else
-    ssh_urls+=("${urls[@]}")
   fi
-  (( page=page+1 ))
+  ssh_urls+=("${urls[@]}")
+  ((page++))
 done
 
 for ssh_url in "${ssh_urls[@]}"; do
-
   echo Cloning "${ssh_url}"...
-
   output=$(git clone "${ssh_url}" 2>&1)
-
-  if [[ "${output}" =~ 'already exists' ]]; then
+  if echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
-  elif [[ "${output}" =~ 'not found' ]]; then
+  elif echo "${output}" | grep -qi "not found"; then
     echo -e "${red}Please make sure you have the correct access rights and the repository exists.${reset}"
-  elif [[ "${output}" =~ 'SAML' ]]; then
+  elif echo "${output}" | grep -qi "SAML"; then
     echo -e "${red}ERROR: The '${org}' organization has enabled or enforced SAML SSO${reset}" >&2
   fi
-
 done
 
-# Clean up ssh-agent
+# Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1

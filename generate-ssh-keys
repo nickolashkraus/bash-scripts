@@ -21,7 +21,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS]"
+  echo "usage: generate-ssh-keys [OPTIONS]"
   echo ""
   echo "Options:"
   echo "  -f FILE       Path to the output keyfile"
@@ -34,7 +34,7 @@ output_keyfile=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -f) output_keyfile="$2"; shift 2 ;;
+    -f) output_keyfile=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
@@ -47,19 +47,19 @@ if [ -z "${output_keyfile}" ]; then
   exit 1
 fi
 
-# Exit if a key pair of the name 'output_keyfile' already exists
+# Exit if a key pair of the name 'output_keyfile' already exists.
 if [ -e "${output_keyfile}" ]; then
   echo -e "${red}ERROR: File already exists.${reset}" >&2
   exit 1
 fi
 
-# Create a .ssh directory if one does not already exist
+# Create a .ssh directory if one does not already exist.
 if [ ! -d "${HOME}/.ssh" ]; then
   mkdir -p "${HOME}/.ssh"
 fi
 
-# Generate an RSA key pair
+# Generate an RSA key pair.
 ssh-keygen -b 2048 -t rsa -f "${HOME}/.ssh/${output_keyfile}" -P ""
 
-# Restrict access to the private key
+# Restrict access to the private key.
 chmod 400 "${HOME}/.ssh/${output_keyfile}"

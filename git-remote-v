@@ -22,7 +22,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] [DIR]"
+  echo "usage: git-remote-v [OPTIONS] [DIR]"
   echo ""
   echo "Arguments:"
   echo "  DIR    Directory to use (optional, defaults to current directory)"
@@ -53,22 +53,15 @@ else
 fi
 
 for d in "${dir}"/*; do
-
   [ -d "${d}" ] || continue
-
   basename "${d}"
-
   if [ ! -d "${d}/.git" ]; then
     echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
-
   pushd "${d}" >/dev/null || exit
-
   echo -e "${green}"
   git remote -v
   echo -e "${reset}"
-
   popd >/dev/null || exit
-
 done

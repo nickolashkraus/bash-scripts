@@ -25,7 +25,7 @@
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS]"
+  echo "usage: install [OPTIONS]"
   echo ""
   echo "Options:"
   echo "  -h, --help    Show this help message"
@@ -44,6 +44,11 @@ done
 mkdir -p "${HOME}"/bin
 
 for f in "$(pwd)"/*; do
-  [ ! -d "${f}" ] && [ -x "${f}" ] && [ "$(basename "${f}")" != "install" ] || continue
+  # Skip if file a directory.
+  [ -d "${f}" ] && continue
+  # Skip if file not executable.
+  [ ! -x "${f}" ] && continue
+  # Skip if file is install script itself.
+  [ "$(basename "${f}")" = "install" ] && continue
   ln -s "${f}" "${HOME}"/bin 2>/dev/null
 done

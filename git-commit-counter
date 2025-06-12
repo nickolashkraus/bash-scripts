@@ -11,12 +11,12 @@
 #   None
 #
 # OPTIONS
-#  -u, --user USER          Git user email (optional, defaults to current user email)
-#  -d, --directory DIR      Directory to scan (optional, defaults to current directory)
-#  -n, --top-n NUM          Display the top N most active repositories (optional, defaults to 10)
-#  -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)
-#  -q, --quiet              Display only summary information
-#  -h, --help               Display this help message
+#   -u, --user USER          Git user email (optional, defaults to current user email)
+#   -d, --directory DIR      Directory to scan (optional, defaults to current directory)
+#   -n, --top-n NUM          Display the top N most active repositories (optional, defaults to 10)
+#   -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)
+#   -q, --quiet              Display only summary information
+#   -h, --help               Display this help message
 #
 # EXAMPLES
 #   git-commit-counter --user 0x@nickolaskraus.io -n 100
@@ -46,9 +46,9 @@ yellow='\033[0;33m'
 blue='\033[0;34m'
 reset='\033[0m'
 
-# Print usage information
+# Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS]"
+  echo "usage: git-commit-counter [OPTIONS]"
   echo ""
   echo "Options:"
   echo "  -u, --user USER          Git user email (optional, defaults to current user email)"
@@ -60,38 +60,17 @@ function usage() {
   echo ""
 }
 
-# Parse command line arguments
+# Parse command line arguments.
 while [[ $# -gt 0 ]]; do
-  case "${1}" in
-    -u|--user)
-      user="${2}"
-      shift 2
-      ;;
-    -d|--directory)
-      scan_dir="${2}"
-      shift 2
-      ;;
-    -n|--top-n)
-      top_n="${2}"
-      shift 2
-      ;;
-    -e|--exclude)
-      # Add to exclusion patterns from command line
-      exclude_patterns+=("${2}")
-      shift 2
-      ;;
-    -q|--quiet)
-      verbose=false
-      shift
-      ;;
-    -h|--help)
-      usage
-      ;;
-    *)
-      echo "Unknown option: ${1}"
-      usage
-      exit 1
-      ;;
+  case $1 in
+    -u|--user) user=$2; shift 2 ;;
+    -d|--directory) scan_dir=$2; shift 2 ;;
+    -n|--top-n) top_n=$2; shift 2 ;;
+    -e|--exclude) exclude_patterns+=("$2"); shift 2 ;;
+    -q|--quiet) verbose=false; shift ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
 
@@ -117,7 +96,7 @@ fi
 echo -e "${blue}Scanning directory:${reset}  ${scan_dir}"
 echo -e "${blue}Counting commits by:${reset} ${user}"
 
-# Display exclusion patterns if any
+# Display exclusion patterns if any.
 if [ ${#exclude_patterns[@]} -gt 0 ]; then
   echo -e "${blue}Excluding patterns:${reset}"
   for pattern in "${exclude_patterns[@]}"; do
@@ -226,7 +205,7 @@ if [ "${total_repos}" -gt 0 ]; then
     echo "${commit_count} ${repo_name} ${repo_path}" >> "${sorted_file}"
   done < "${results_file}"
 
-  # Sort results
+  # Sort results.
   sort -rn "${sorted_file}" > "${sorted_file}.sorted"
   mv "${sorted_file}.sorted" "${sorted_file}"
 

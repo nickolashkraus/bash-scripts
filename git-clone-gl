@@ -37,7 +37,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] GROUP [TOKEN]"
+  echo "usage: git-clone-gl [OPTIONS] GROUP [TOKEN]"
   echo ""
   echo "Arguments:"
   echo "  GROUP    GitLab group"
@@ -74,7 +74,7 @@ if [ -z "${group}" ]; then
   exit 1
 fi
 
-# If no access token provided as argument, check environment variable
+# If no access token provided as argument, check environment variable.
 if [ -z "${access_token}" ]; then
   access_token="${GITLAB_API_TOKEN}"
 fi
@@ -85,17 +85,16 @@ if [ -z "${access_token}" ]; then
   exit 1
 fi
 
-eval $(ssh-agent -s) >/dev/null 2>&1 && \
-  ssh-add ~/.ssh/id_rsa >/dev/null 2>&1
+eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+  ssh-add "${HOME}/.ssh/id_rsa" >/dev/null 2>&1
 
-ssh git@gitlab.internal.granular.ag >/dev/null 2>&1
-
-if [ $? -eq 255 ]; then
+# Test SSH connection to GitLab.
+if ! ssh -T git@gitlab.internal.granular.ag >/dev/null 2>&1; then
   echo -e "${red}ERROR: Permission denied (publickey).${reset}" >&2
   exit 1
 fi
 
-# Encode URL (convert '\' to '%2f')
+# Encode URL (convert '\' to '%2f').
 group=$(echo "${group}" | sed "s/\//%2f/")
 
 # The GitLab API returns a maximum of 100 results per page. Therefore, we
@@ -103,31 +102,26 @@ group=$(echo "${group}" | sed "s/\//%2f/")
 page=1
 ssh_urls=()
 while true; do
-  urls=($(curl -L --silent -X GET \
-    --header "Authorization: Bearer ${access_token}" \
-    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" \
-    | jq '.[].ssh_url_to_repo' \
-    | tr -d \"))
-
+  mapfile -t urls <<EOF_URLS
+$(curl -L --silent -X GET \
+  --header "Authorization: Bearer ${access_token}" \
+  "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" \
+  | jq -r '.[].ssh_url_to_repo')
+EOF_URLS
   if [ ${#urls[@]} -eq 0 ]; then
     break
-  else
-    ssh_urls+=("${urls[@]}")
   fi
-  (( page=page+1 ))
+  ssh_urls+=("${urls[@]}")
+  ((page++))
 done
 
 for ssh_url in "${ssh_urls[@]}"; do
-
   echo Cloning "${ssh_url}"...
-
   output=$(git clone "${ssh_url}" 2>&1)
-
-  if [ $(echo "${output}" | grep -i "already exists" -c) -ne 0 ]; then
+  if echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
   fi
-
 done
 
-# Clean up ssh-agent
+# Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1

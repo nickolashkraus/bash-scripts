@@ -23,7 +23,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: $0 [OPTIONS] [DIR]"
+  echo "usage: git-status [OPTIONS] [DIR]"
   echo ""
   echo "Arguments:"
   echo "  DIR    Directory to use (optional, defaults to current directory)"
@@ -54,20 +54,14 @@ else
 fi
 
 for d in "${dir}"/*; do
-
   [ -d "${d}" ] || continue
-
   basename "${d}"
-
   if [ ! -d "${d}/.git" ]; then
     echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
-
   pushd "${d}" >/dev/null || exit
-
   output=$(git status 2>&1)
-
   if [[ "${output}" =~ modified ]]; then
     echo -e "${red}Modified files${reset}"
   elif [[ "${output}" =~ untracked ]]; then
@@ -77,7 +71,5 @@ for d in "${dir}"/*; do
   else
     echo -e "${green}Working tree clean.${reset}"
   fi
-
   popd >/dev/null || exit
-
 done
