@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Add a newline EOF to every file in a given directory.
+#   Excludes PNGs and files in .git/.
+#
+# USAGE
+#   add-newline-eof [OPTIONS] [DIR]
+#
+# ARGUMENTS
+#   DIR    Directory to use (optional, defaults to current directory)
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: add-newline-eof [OPTIONS] [DIR]"
+  echo ""
+  echo "Arguments:"
+  echo "  DIR    Directory to use (optional, defaults to current directory)"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+dir=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) dir="$1"; shift; break ;;
+  esac
+done
+
+if [ -z "${dir}" ]; then
+  dir="$(pwd)"
+else
+  if [ ! -e "${dir}" ]; then
+    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    exit 1
+  fi
+fi
+
+if ! [ -x "$(command -v gsed)" ]; then
+  echo -e "${red}ERROR: gsed is not installed.${reset}" >&2
+  exit 1
+fi
+
+function add_newline_eof() {
+  find . -type f \
+  -name "*" \
+  -not -name "*.png" \
+  -not -path "./.git/*" \
+  -exec gsed -i '$a\' {} \;
+}
+
+pushd "${dir}" >/dev/null || exit
+add_newline_eof
+popd >/dev/null || exit

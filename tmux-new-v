@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Spawn a new tmux session for a vertical display.
+#   Creates a session using the name of the current directory with three
+#   panes in a vertical layout.
+#
+#   NOTE: This script is specific to my local development environment.
+#
+# USAGE
+#   tmux-new-v [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: tmux-new-v [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+if ! [ -x "$(command -v tmux)" ]; then
+  echo -e "${red}ERROR: tmux is not installed.${reset}" >&2
+  exit 1
+fi
+
+tmux_new_v() {
+  BASE_NAME="$(basename "$(pwd)")"
+  i=0
+  while tmux has-session -t "${BASE_NAME}-${i}" 2>/dev/null; do
+    i=$((i + 1))
+  done
+  SESSION_NAME="${BASE_NAME}-${i}"
+
+  tmux new-session -d -s "${SESSION_NAME}" \; \
+    split-window -v \; \
+    split-window -h -t 1 \; \
+    select-layout '3b4e,309x254,0,0[309x37,0,0,0,309x151,0,38,1,309x64,0,190,2]' \; \
+    select-pane -t 1 \; \
+    attach-session -t "${SESSION_NAME}"
+}
+
+tmux_new_v
