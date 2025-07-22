@@ -51,7 +51,7 @@ else
   fi
 fi
 
-python_clean() {
+function python_clean() {
   # Remove build artifacts.
   find . -name '*.egg' -exec rm -fr {} +
   find . -name '*.egg-info' -exec rm -fr {} +

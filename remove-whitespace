@@ -57,7 +57,7 @@ if ! [ -x "$(command -v gsed)" ]; then
   exit 1
 fi
 
-remove_whitespace() {
+function remove_whitespace() {
   find . -type f \
   -name "*" \
   -not -name "*.png" \

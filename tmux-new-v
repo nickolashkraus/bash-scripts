@@ -46,7 +46,7 @@ if ! [ -x "$(command -v tmux)" ]; then
   exit 1
 fi
 
-tmux_new_v() {
+function tmux_new_v() {
   BASE_NAME="$(basename "$(pwd)")"
   i=0
   while tmux has-session -t "${BASE_NAME}-${i}" 2>/dev/null; do
@@ -55,7 +55,7 @@ tmux_new_v() {
   SESSION_NAME="${BASE_NAME}-${i}"
 
   tmux new-session -d -s "${SESSION_NAME}" \; \
-    split-window -v \; \
+    split-window -h \; \
     split-window -h -t 1 \; \
     select-layout '3b4e,309x254,0,0[309x37,0,0,0,309x151,0,38,1,309x64,0,190,2]' \; \
     select-pane -t 1 \; \
