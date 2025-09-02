@@ -38,9 +38,20 @@ dir=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) dir="$1"; shift; break ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      dir="$1"
+      shift
+      break
+      ;;
   esac
 done
 
@@ -69,7 +80,7 @@ for d in "${dir}"/*; do
   elif [[ "${output}" =~ ahead ]]; then
     echo -e "${yellow}Use \"git push\" to publish your local commits${reset}"
   else
-    echo -e "${green}Working tree clean.${reset}"
+    echo -e "${green}Working tree clean${reset}"
   fi
   popd >/dev/null || exit
 done
