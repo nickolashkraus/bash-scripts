@@ -160,7 +160,8 @@ $(curl -L --silent -X GET \
     "https://api.github.com/${resource}?sort=full_name&page=${page}" |
     jq -r "${jq_filter}")
 EOF_URLS
-  if [ ${#urls[@]} -eq 0 ]; then
+  # Check if the array is empty or contains only an empty string.
+  if [ ${#urls[@]} -eq 0 ] || [ -z "${urls[0]}" ]; then
     break
   fi
   ssh_urls+=("${urls[@]}")

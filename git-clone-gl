@@ -120,7 +120,8 @@ $(curl -L --silent -X GET \
     "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" |
     jq -r '.[].ssh_url_to_repo')
 EOF_URLS
-  if [ ${#urls[@]} -eq 0 ]; then
+  # Check if the array is empty or contains only an empty string.
+  if [ ${#urls[@]} -eq 0 ] || [ -z "${urls[0]}" ]; then
     break
   fi
   ssh_urls+=("${urls[@]}")
