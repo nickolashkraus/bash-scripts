@@ -46,12 +46,32 @@ dir=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -m|--master) master=true; shift ;;
-    -i|--identity-file) identity_file=$2; shift 2 ;;
-    -d|--directory) dir=$2; shift 2 ;;
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+    -m | --master)
+      master=true
+      shift
+      ;;
+    -i | --identity-file)
+      identity_file=$2
+      shift 2
+      ;;
+    -d | --directory)
+      dir=$2
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
   esac
 done
 
@@ -64,7 +84,7 @@ else
   fi
 fi
 
-eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 
 for d in "${dir}"/*; do

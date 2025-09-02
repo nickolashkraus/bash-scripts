@@ -54,17 +54,27 @@ access_token=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
     *)
       if [ -z "${group}" ]; then
         group="$1"
       elif [ -z "${access_token}" ]; then
         access_token="$1"
       else
-        echo "Too many arguments: $1" >&2; usage; exit 1
+        echo "Too many arguments: $1" >&2
+        usage
+        exit 1
       fi
-      shift ;;
+      shift
+      ;;
   esac
 done
 
@@ -85,7 +95,7 @@ if [ -z "${access_token}" ]; then
   exit 1
 fi
 
-eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/id_rsa" >/dev/null 2>&1
 
 # Test SSH connection to GitLab.
@@ -104,9 +114,9 @@ ssh_urls=()
 while true; do
   mapfile -t urls <<EOF_URLS
 $(curl -L --silent -X GET \
-  --header "Authorization: Bearer ${access_token}" \
-  "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" \
-  | jq -r '.[].ssh_url_to_repo')
+    --header "Authorization: Bearer ${access_token}" \
+    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" |
+    jq -r '.[].ssh_url_to_repo')
 EOF_URLS
   if [ ${#urls[@]} -eq 0 ]; then
     break

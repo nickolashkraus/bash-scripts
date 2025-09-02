@@ -32,9 +32,20 @@ function usage() {
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
   esac
 done
 
@@ -54,10 +65,10 @@ fi
 # 3. Deduplicate hyphens ('--' >>> '-')
 # 4. Change all characters to lowercase
 # 5. Remove trailing newline ('\n')
-pbpaste | \
-  sed 's/[ ]/-/g' | \
-  sed 's/[,;/?:@=&]//g' | \
-  sed -E 's/[-]{2,}/-/g' | \
-  awk '{print tolower($1)}' | \
-  tr -d '\n' | \
+pbpaste |
+  sed 's/[ ]/-/g' |
+  sed 's/[,;/?:@=&]//g' |
+  sed -E 's/[-]{2,}/-/g' |
+  awk '{print tolower($1)}' |
+  tr -d '\n' |
   pbcopy

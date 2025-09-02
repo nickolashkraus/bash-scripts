@@ -36,9 +36,20 @@ file=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) file="$1"; shift; break ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      file="$1"
+      shift
+      break
+      ;;
   esac
 done
 
@@ -55,7 +66,8 @@ fi
 
 filename=$(echo "${file}" | cut -f 1 -d '.')
 
-python_script=$(cat << END
+python_script=$(
+  cat <<END
 import sys;
 import json;
 import yaml;
@@ -65,4 +77,4 @@ yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)
 END
 )
 
-python -c "${python_script}" < "${file}" > "${filename}.yaml"
+python -c "${python_script}" <"${file}" >"${filename}.yaml"

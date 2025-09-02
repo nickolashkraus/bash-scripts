@@ -39,17 +39,27 @@ credentials=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
     *)
       if [ -z "${project_key}" ]; then
         project_key="$1"
       elif [ -z "${credentials}" ]; then
         credentials="$1"
       else
-        echo "Too many arguments: $1" >&2; usage; exit 1
+        echo "Too many arguments: $1" >&2
+        usage
+        exit 1
       fi
-      shift ;;
+      shift
+      ;;
   esac
 done
 
@@ -71,7 +81,7 @@ mapfile -t ssh_urls <<EOF_SSH_URLS
 $(curl -s -X GET \
   -H "Authorization: Basic ${credentials}" \
   -H "Content-Type: application/json" \
-  "${resource}" | \
+  "${resource}" |
   jq -r '.values[].links.clone[] | select(.name == "ssh") | .href')
 EOF_SSH_URLS
 

@@ -54,8 +54,15 @@ host=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
     *)
       if [ -z "${user_name}" ]; then
         user_name="$1"
@@ -64,9 +71,12 @@ while [[ $# -gt 0 ]]; do
       elif [ -z "${host}" ]; then
         host="$1"
       else
-        echo "Too many arguments: $1" >&2; usage; exit 1
+        echo "Too many arguments: $1" >&2
+        usage
+        exit 1
       fi
-      shift ;;
+      shift
+      ;;
   esac
 done
 
@@ -96,8 +106,8 @@ fi
 for d in *; do
   if [ -d "${d}" ]; then
     pushd "${d}" >/dev/null || exit
-    git config user.name "${user_name}" && \
-    git config user.email "${user_email}"
+    git config user.name "${user_name}" &&
+      git config user.email "${user_email}"
     old_url="$(git remote get-url origin)"
     new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/")
     git remote set-url origin "${new_url}"

@@ -63,13 +63,36 @@ access_token=""
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u|--user) user=$2; shift 2 ;;
-    -o|--org) org=$2; shift 2 ;;
-    -i|--identity-file) identity_file=$2; shift 2 ;;
-    -s|--skip-archived) skip_archived=true; shift ;;
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) access_token="$1"; shift; break ;;
+    -u | --user)
+      user=$2
+      shift 2
+      ;;
+    -o | --org)
+      org=$2
+      shift 2
+      ;;
+    -i | --identity-file)
+      identity_file=$2
+      shift 2
+      ;;
+    -s | --skip-archived)
+      skip_archived=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      access_token="$1"
+      shift
+      break
+      ;;
   esac
 done
 
@@ -91,7 +114,7 @@ if [ -z "${access_token}" ]; then
   exit 1
 fi
 
-eval "$(ssh-agent -s)" >/dev/null 2>&1 && \
+eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 
 # Test SSH connection to GitHub.
@@ -103,7 +126,7 @@ fi
 # Set resource and check if GitHub user/organization exists.
 if [ -n "${user}" ]; then
   resource="users/${user}/repos"
-  if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null ; then
+  if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null; then
     echo -e "${red}ERROR: GitHub user does not exist.${reset}" >&2
     exit 1
   fi
@@ -131,9 +154,9 @@ ssh_urls=()
 while true; do
   mapfile -t urls <<EOF_URLS
 $(curl -L --silent -X GET \
-  --header "Authorization: Token ${access_token}" \
-  "https://api.github.com/${resource}?sort=full_name&page=${page}" | \
-  jq -r "${jq_filter}")
+    --header "Authorization: Token ${access_token}" \
+    "https://api.github.com/${resource}?sort=full_name&page=${page}" |
+    jq -r "${jq_filter}")
 EOF_URLS
   if [ ${#urls[@]} -eq 0 ]; then
     break

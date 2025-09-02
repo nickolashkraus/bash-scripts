@@ -21,10 +21,10 @@
 # EXAMPLES
 #   git-commit-counter --user 0x@nickolaskraus.io -n 100
 
-user=""       # Commit author email. Defaults to the email set via global options.
-scan_dir="."  # Directory to scan. Defaults to the current directory.
-top_n=10      # Top N most active repositories. Defaults to 10.
-verbose=true  # Set to false to only show summary results.
+user=""      # Commit author email. Defaults to the email set via global options.
+scan_dir="." # Directory to scan. Defaults to the current directory.
+top_n=10     # Top N most active repositories. Defaults to 10.
+verbose=true # Set to false to only show summary results.
 
 # Directories to exclude (add patterns you want to exclude)
 # Each line is a pattern that will be passed to grep -v
@@ -63,14 +63,40 @@ function usage() {
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u|--user) user=$2; shift 2 ;;
-    -d|--directory) scan_dir=$2; shift 2 ;;
-    -n|--top-n) top_n=$2; shift 2 ;;
-    -e|--exclude) exclude_patterns+=("$2"); shift 2 ;;
-    -q|--quiet) verbose=false; shift ;;
-    -h|--help) usage; exit 0 ;;
-    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
-    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+    -u | --user)
+      user=$2
+      shift 2
+      ;;
+    -d | --directory)
+      scan_dir=$2
+      shift 2
+      ;;
+    -n | --top-n)
+      top_n=$2
+      shift 2
+      ;;
+    -e | --exclude)
+      exclude_patterns+=("$2")
+      shift 2
+      ;;
+    -q | --quiet)
+      verbose=false
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
   esac
 done
 
@@ -118,13 +144,13 @@ results_file=$(mktemp)
 filtered_repos=$(mktemp)
 
 # Find all Git repositories.
-find "${scan_dir}" -type d -name ".git" > "${repo_data_file}"
+find "${scan_dir}" -type d -name ".git" >"${repo_data_file}"
 
 # Filter out excluded patterns.
-cat "${repo_data_file}" > "${filtered_repos}"
+cat "${repo_data_file}" >"${filtered_repos}"
 for pattern in "${exclude_patterns[@]}"; do
   if [ -n "${pattern}" ]; then
-    grep -v "${pattern}" "${filtered_repos}" > "${filtered_repos}.tmp" || true
+    grep -v "${pattern}" "${filtered_repos}" >"${filtered_repos}.tmp" || true
     mv "${filtered_repos}.tmp" "${filtered_repos}"
   fi
 done
@@ -149,11 +175,11 @@ while read -r gitdir; do
   commit_count=$(echo "${commit_count}" | tr -d '[:space:]')
 
   # Store result in file (repo_name:commit_count:repo_dir).
-  echo "${repo_name}:${commit_count}:${repo_dir}" >> "${results_file}"
+  echo "${repo_name}:${commit_count}:${repo_dir}" >>"${results_file}"
 
   # Update totals.
   ((total_repos++))
-  ((total_commits+=commit_count))
+  ((total_commits += commit_count))
 
   if [ "${commit_count}" -gt 0 ]; then
     ((repos_with_commits++))
@@ -174,8 +200,8 @@ while read -r gitdir; do
   fi
 
   # Return to original directory.
-  cd - > /dev/null || true
-done < "${filtered_repos}"
+  cd - >/dev/null || true
+done <"${filtered_repos}"
 
 # Clean up temporary find files.
 rm "${repo_data_file}" "${filtered_repos}"
@@ -202,11 +228,11 @@ if [ "${total_repos}" -gt 0 ]; then
     rest="${line#*:}"
     commit_count="${rest%%:*}"
     repo_path="${rest#*:}"
-    echo "${commit_count} ${repo_name} ${repo_path}" >> "${sorted_file}"
-  done < "${results_file}"
+    echo "${commit_count} ${repo_name} ${repo_path}" >>"${sorted_file}"
+  done <"${results_file}"
 
   # Sort results.
-  sort -rn "${sorted_file}" > "${sorted_file}.sorted"
+  sort -rn "${sorted_file}" >"${sorted_file}.sorted"
   mv "${sorted_file}.sorted" "${sorted_file}"
 
   echo ""
