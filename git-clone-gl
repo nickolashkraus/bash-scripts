@@ -99,12 +99,12 @@ eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/id_rsa" >/dev/null 2>&1
 
 # Test SSH connection to GitHub.
-ssh_output=$(ssh -T git@github.com 2>&1)
-if [[ ! "$ssh_output" =~ "successfully authenticated" ]]; then
-  echo -e "${red}ERROR: GitHub SSH authentication failed.${reset}" >&2
-  echo "$ssh_output" >&2
-  exit 1
-fi
+# ssh_output=$(ssh -T git@github.com 2>&1)
+# if [[ ! "$ssh_output" =~ "successfully authenticated" ]]; then
+#   echo -e "${red}ERROR: GitHub SSH authentication failed.${reset}" >&2
+#   echo "$ssh_output" >&2
+#   exit 1
+# fi
 
 # Encode URL (convert '\' to '%2f').
 group=$(echo "${group}" | sed "s/\//%2f/")
