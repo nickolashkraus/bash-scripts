@@ -61,5 +61,5 @@ for f in "$(pwd)"/*; do
   [ ! -x "${f}" ] && continue
   # Skip if file is install script itself.
   [ "$(basename "${f}")" = "install" ] && continue
-  ln -s "${f}" "${HOME}"/bin 2>/dev/null
+  ln -s "${f}" "${HOME}"/bin 2>/dev/null || true
 done
