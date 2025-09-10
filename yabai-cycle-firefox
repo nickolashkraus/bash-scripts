@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Focus and show Firefox (bring floating window to front).
+#
+#   If multiple Firefox windows exist, cycle through windows on successive
+#   invocations.
+#
+# USAGE
+#   yabai-cycle-firefox [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Print usage information.
+function usage() {
+  echo "usage: yabai-cycle-firefox [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Get the ID of the Firefox window currently in focus. Otherwise, set to an
+# empty string.
+current=$(yabai -m query --windows --window 2>/dev/null |
+  jq -r 'select(.app == "Firefox") | .id // empty' 2>/dev/null)
+
+# Get the IDs of all Firefox windows.
+ids=$(yabai -m query --windows 2>/dev/null |
+  jq -r '.[] | select(.app == "Firefox") | .id' 2>/dev/null | sort -n)
+
+# If no Firefox windows exist, open the application.
+if [ -z "${ids}" ]; then
+  open -a "Firefox"
+  exit 0
+fi
+
+if [ -z "${current}" ]; then
+  # If the current window is not Firefox, set $next to the first window in
+  # $ids.
+  next=$(echo "${ids}" | head -n 1)
+else
+  # Else, the current window is Firefox, therefore set $next to the next window
+  # in $ids.
+  next=$(echo "${ids}" | grep -A 1 "^${current}$" | tail -n 1)
+  # Cycle to the first window in $ids.
+  if [ "$next" = "$current" ] || [ -z "$next" ]; then
+    next=$(echo "${ids}" | head -n 1)
+  fi
+fi
+
+# NOTE: Only run the layer command if the focus command succeeds.
+if yabai -m window --focus "${next}" 2>/dev/null; then
+  yabai -m window --layer above "${next}" 2>/dev/null
+fi
