@@ -26,8 +26,8 @@ scan_dir="." # Directory to scan. Defaults to the current directory.
 top_n=10     # Top N most active repositories. Defaults to 10.
 verbose=true # Set to false to only show summary results.
 
-# Directories to exclude (add patterns you want to exclude)
-# Each line is a pattern that will be passed to grep -v
+# Directories to exclude (add patterns you want to exclude).
+# Each line is a pattern that will be passed to grep -v.
 # Example exclusions:
 #   ".terraform/modules"   # Exclude Terraform modules
 #   "node_modules"         # Exclude Node.js modules
