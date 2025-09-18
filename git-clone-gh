@@ -22,16 +22,24 @@
 #   TOKEN    GitHub personal access token (can also be set via GITHUB_API_TOKEN)
 #
 # OPTIONS
-#   -u, --user             User's repositories to clone
-#   -o, --org              Organization's repositories to clone
-#   -i, --identity-file    File for the identity (private key) for public key authentication
-#                          (optional, defaults to id_rsa)
-#   -s, --skip-archived    Whether to skip archived repositories
-#   -h, --help             Show this help message
+#   -u, --user               User's repositories to clone
+#   -o, --org                Organization's repositories to clone
+#   -i, --identity-file      File for the identity (private key) for public key authentication
+#                            (optional, defaults to id_rsa)
+#   -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)
+#   -s, --skip-archived      Whether to skip archived repositories
+#   -h, --help               Show this help message
 #
 # EXAMPLES
 #   git-clone-gh -u nickolashkraus ghp_xxx
 #   git-clone-gh -o Workiva ghp_xxx --skip-archived
+
+# Repositories to exclude (add patterns you want to exclude).
+# Each line is a pattern that will be passed to grep -v.
+# Example exclusions:
+#   "org/a-very-big-repo"
+#   "another-big-repo"
+exclude_patterns=()
 
 # Colors
 red='\033[0;31m'
@@ -45,12 +53,13 @@ function usage() {
   echo "  TOKEN    GitHub personal access token"
   echo ""
   echo "Options:"
-  echo "  -u, --user             User's repositories to clone"
-  echo "  -o, --org              Organization's repositories to clone"
-  echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
-  echo "                         (optional, defaults to id_rsa)"
-  echo "  -s, --skip-archived    Whether to skip archived repositories"
-  echo "  -h, --help             Show this help message"
+  echo "  -u, --user               User's repositories to clone"
+  echo "  -o, --org                Organization's repositories to clone"
+  echo "  -i, --identity-file      File for the identity (private key) for public key authentication"
+  echo "                           (optional, defaults to id_rsa)"
+  echo "  -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)"
+  echo "  -s, --skip-archived      Whether to skip archived repositories"
+  echo "  -h, --help               Show this help message"
   echo ""
 }
 
@@ -73,6 +82,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -i | --identity-file)
       identity_file=$2
+      shift 2
+      ;;
+    -e | --exclude)
+      exclude_patterns+=("$2")
       shift 2
       ;;
     -s | --skip-archived)
@@ -168,7 +181,14 @@ EOF_URLS
   ((page++))
 done
 
-for ssh_url in "${ssh_urls[@]}"; do
+filtered=("${ssh_urls[@]}")
+
+if ((${#exclude_patterns[@]} > 0)); then
+  pattern="$(printf '%s\n' "${exclude_patterns[@]}" | paste -sd'|' -)"
+  mapfile -t filtered < <(printf '%s\n' "${ssh_urls[@]}" | grep -v -E "${pattern}")
+fi
+
+for ssh_url in "${filtered[@]}"; do
   echo Cloning "${ssh_url}"...
   output=$(git clone "${ssh_url}" 2>&1)
   if echo "${output}" | grep -qi "already exists"; then
