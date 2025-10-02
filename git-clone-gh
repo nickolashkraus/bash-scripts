@@ -12,8 +12,16 @@
 #
 #     * Personal access tokens > Configure SSO > Authorize
 #
-#   SEE ALSO:
+#   See also:
 #     * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+#
+#   NOTE: If using SSH with an SSH key, you must grant your SSH key access to
+#   this organization as well.
+#
+#     * SSH and GPG keys > Configure SSO > Authorize
+#
+#   See also:
+#     * https://docs.github.com/articles/authenticating-to-a-github-organization-with-saml-single-sign-on
 #
 # USAGE
 #   git-clone-gh [OPTIONS] [TOKEN]
@@ -43,6 +51,7 @@ exclude_patterns=()
 
 # Colors
 red='\033[0;31m'
+yellow='\033[0;33m'
 reset='\033[0m'
 
 # Print usage information.
@@ -151,6 +160,15 @@ elif [ -n "${org}" ]; then
     echo -e "${red}ERROR: GitHub organization does not exist.${reset}" >&2
     exit 1
   fi
+  # Check if resource is protected by organization SAML enforcement.
+  status=$(curl -L --silent --output /dev/null --write-out "%{http_code}" -X GET \
+    --header "Authorization: Token ${access_token}" \
+    "https://api.github.com/${resource}")
+  if [ "${status}" -eq 403 ]; then
+    echo -e "${red}ERROR: Resource protected by organization SAML enforcement.${reset}" >&2
+    echo -e "${red}You must grant your personal access token access to this organization.${reset}" >&2
+    exit 1
+  fi
 else
   exit 1
 fi
@@ -196,7 +214,10 @@ for ssh_url in "${filtered[@]}"; do
   elif echo "${output}" | grep -qi "not found"; then
     echo -e "${red}Please make sure you have the correct access rights and the repository exists.${reset}"
   elif echo "${output}" | grep -qi "SAML"; then
-    echo -e "${red}ERROR: The '${org}' organization has enabled or enforced SAML SSO${reset}" >&2
+    echo -e "${red}ERROR: The '${org}' organization has enabled or enforced SAML SSO.${reset}" >&2
+    echo -e "${yellow}To access this repository, you must use the HTTPS remote with a personal access token${reset}" >&2
+    echo -e "${yellow}or SSH with an SSH key and passphrase that has been authorized for this organization.${reset}" >&2
+    exit 1
   fi
 done
 
