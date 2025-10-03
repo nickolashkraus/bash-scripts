@@ -68,7 +68,7 @@ function tmux_new_h() {
   tmux new-session -d -s "${SESSION_NAME}" \; \
     split-window -v \; \
     split-window -v -t 1 \; \
-    select-layout '3b9b,554x141,0,0{184x141,0,0,2,184x141,185,0,5,184x141,370,0,3}' \; \
+    select-layout 'e58b,554x141,0,0{276x141,0,0,4,277x141,277,0,5}' \; \
     select-pane -t 0 \; \
     attach-session -t "${SESSION_NAME}"
 }
