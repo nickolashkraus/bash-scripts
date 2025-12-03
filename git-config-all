@@ -27,7 +27,7 @@
 #   -h, --help    Show this help message
 #
 # EXAMPLES
-#   git-config-all 'Nickolas Kraus' 'Nickolas.Kraus@workiva.com' 'workiva.github.com'
+#   git-config-all 'Nickolas Kraus' '0x@nickolaskraus.io' 'github.com'
 
 # Colors
 red='\033[0;31m'
