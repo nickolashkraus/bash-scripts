@@ -73,6 +73,7 @@ function remove_whitespace() {
     -name "*" \
     -not -name "*.png" \
     -not -path "./.git/*" \
+    -not -path "./node_modules/*" \
     -exec gsed -i 's/[[:space:]]\+$//' {} \;
 }
 
