@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Spawn a new tmux session.
+#   Creates a session using the name of the current directory.
+#
+#   NOTE: This script is specific to my local development environment.
+#
+# USAGE
+#   tmux-new [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: tmux-new [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if ! [ -x "$(command -v tmux)" ]; then
+  echo -e "${red}ERROR: tmux is not installed.${reset}" >&2
+  exit 1
+fi
+
+function tmux_new() {
+  BASE_NAME="$(basename "$(pwd)")"
+  i=0
+  while tmux has-session -t "${BASE_NAME}-${i}" 2>/dev/null; do
+    i=$((i + 1))
+  done
+  SESSION_NAME="${BASE_NAME}-${i}"
+
+  tmux new-session -d -s "${SESSION_NAME}" \; \
+    attach-session -t "${SESSION_NAME}"
+}
+
+tmux_new
