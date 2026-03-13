@@ -64,18 +64,15 @@ fi
 current=$(yabai -m query --windows --window 2>/dev/null |
   jq -r "select(.app == \"${app}\") | .id // empty" 2>/dev/null)
 
-# Get the IDs of all windows.
+# Get the IDs of all visible windows.
 ids=$(yabai -m query --windows 2>/dev/null |
-  jq -r ".[] | select(.app == \"${app}\") | .id" 2>/dev/null | sort -n)
+  jq -r ".[] | select(.app == \"${app}\" and .\"is-visible\") | .id" \
+  2>/dev/null | sort -n)
 
-# If no windows exist, reopen the application. This covers the case where the
-# app is running, but has no windows.
+# If no windows exist, open the application. This covers the case where the app
+# is not running or is running but has no windows.
 if [ -z "${ids}" ]; then
-  # AppleScript reopen mimics a Dock click and will create a window if needed.
-  osascript \
-    -e "tell application \"${app}\" to reopen" \
-    -e "tell application \"${app}\" to activate" >/dev/null 2>&1 ||
-    open -a "${app}"
+  open -a "${app}"
   exit 0
 fi
 
@@ -92,7 +89,7 @@ else
   fi
 fi
 
-# NOTE: Only run the layer command if the focus command succeeds.
+# NOTE: Only run the raise command if the focus command succeeds.
 if yabai -m window --focus "${next}" 2>/dev/null; then
-  yabai -m window --layer above "${next}" 2>/dev/null
+  yabai -m window --raise 2>/dev/null
 fi
