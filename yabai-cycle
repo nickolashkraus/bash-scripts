@@ -67,7 +67,7 @@ current=$(yabai -m query --windows --window 2>/dev/null |
 # Get the IDs of all visible windows.
 ids=$(yabai -m query --windows 2>/dev/null |
   jq -r ".[] | select(.app == \"${app}\" and .\"is-visible\") | .id" \
-  2>/dev/null | sort -n)
+    2>/dev/null | sort -n)
 
 # If no windows exist, open the application. This covers the case where the app
 # is not running or is running but has no windows.
