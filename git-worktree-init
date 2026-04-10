@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Convert a regular Git clone into a bare repository with a worktree for the
+#   default branch. This enables the bare-clone container pattern where each
+#   branch is a peer worktree directory.
+#
+# USAGE
+#   git-worktree-init [OPTIONS] <repo>
+#
+# ARGUMENTS
+#   REPO    Path to the Git repository to convert
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   git-worktree-init transaction-service
+#   git-worktree-init ~/Function-Health/transaction-service
+
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: git-worktree-init [OPTIONS] <repo>"
+  echo ""
+  echo "Arguments:"
+  echo "  REPO    Path to the Git repository to convert"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+repo=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      repo="$1"
+      shift
+      break
+      ;;
+  esac
+done
+
+if [ -z "${repo}" ]; then
+  echo -e "${red}ERROR: Specify a repository to convert.${reset}" >&2
+  usage
+  exit 1
+fi
+
+# Remove trailing slash.
+repo="${repo%/}"
+
+if [ ! -d "${repo}" ]; then
+  echo -e "${red}ERROR: ${repo} does not exist.${reset}" >&2
+  exit 1
+fi
+
+if [ ! -d "${repo}/.git" ]; then
+  if [ "$(git -C "${repo}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    echo -e "${red}ERROR: ${repo} is already a bare repository.${reset}" >&2
+  else
+    echo -e "${red}ERROR: ${repo} is not a Git repository.${reset}" >&2
+  fi
+  exit 1
+fi
+
+cd "${repo}" || exit 1
+repo_abs=$(pwd)
+repo_parent=$(dirname "${repo_abs}")
+repo_name=$(basename "${repo_abs}")
+
+# Check for uncommitted changes.
+if [ -n "$(git status --porcelain)" ]; then
+  echo -e "${red}ERROR: Uncommitted changes. Commit or stash first.${reset}" >&2
+  exit 1
+fi
+
+# Check for unpushed commits.
+unpushed=$(git log --branches --not --remotes --oneline 2>/dev/null)
+if [ -n "${unpushed}" ]; then
+  echo -e "${red}ERROR: Unpushed commits. Push all branches first.${reset}" >&2
+  exit 1
+fi
+
+# Get remote URL.
+remote_url=$(git remote get-url origin 2>/dev/null)
+if [ -z "${remote_url}" ]; then
+  echo -e "${red}ERROR: No 'origin' remote found.${reset}" >&2
+  exit 1
+fi
+
+# Determine the default branch.
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+if [ -z "${default_branch}" ]; then
+  if git show-ref --verify --quiet refs/heads/master 2>/dev/null; then
+    default_branch="master"
+  elif git show-ref --verify --quiet refs/heads/main 2>/dev/null; then
+    default_branch="main"
+  else
+    echo -e "${red}ERROR: Cannot determine default branch.${reset}" >&2
+    exit 1
+  fi
+fi
+
+cd "${repo_parent}" || exit 1
+
+# Move existing clone to a temporary location.
+tmp="${repo_name}-worktree-tmp-$$"
+mv "${repo_name}" "${tmp}"
+
+# Clone as a bare repository.
+if ! git clone --bare "${remote_url}" "${repo_name}"; then
+  echo -e "${red}ERROR: Bare clone failed. Restoring original.${reset}" >&2
+  rm -rf "${repo_name}"
+  mv "${tmp}" "${repo_name}"
+  exit 1
+fi
+
+cd "${repo_name}" || exit 1
+
+# Fix the fetch refspec for worktree compatibility. By default, bare clones
+# map remote branches to local refs. This restores the standard remote
+# tracking layout so that git pull works inside worktrees.
+git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git fetch origin >/dev/null 2>&1
+
+# Add a worktree for the default branch and set up tracking.
+git worktree add "${default_branch}" "${default_branch}" >/dev/null 2>&1
+git -C "${default_branch}" branch -u "origin/${default_branch}" >/dev/null 2>&1
+
+cd "${repo_parent}" || exit 1
+
+# Clean up the temporary clone.
+rm -rf "${tmp}"
+
+echo -e "${green}Converted ${repo_name} to bare clone with '${default_branch}' worktree.${reset}"
