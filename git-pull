@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # DESCRIPTION
-#   Pull all Git repositories within a given directory.
+#   Pull all Git repositories within a given directory. Supports both regular
+#   clones and bare repository worktree containers.
 #
 # USAGE
 #   git-pull [OPTIONS]
@@ -37,6 +38,54 @@ function usage() {
   echo "  -d, --directory DIR    Directory to use (optional, defaults to the current directory)"
   echo "  -h, --help             Show this help message"
   echo ""
+}
+
+# Pull the current branch and print the result.
+function do_pull() {
+  local output
+  output=$(git pull 2>&1)
+
+  if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
+    echo -e "${green}Already up to date.${reset}"
+  elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
+    echo -e "${green}Successfully rebased and updated${reset}"
+  elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
+    echo -e "${yellow}There is no tracking information for the current branch."
+    git branch | grep "\*"
+    echo -e "${reset}"
+  elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]+\.\.[a-f0-9]+ ]]; then
+    echo -e "${yellow}Updating"
+    echo "${output}"
+    echo -e "${reset}"
+  else
+    echo -e "${red}Error"
+    echo "${output}"
+    echo -e "${reset}"
+  fi
+}
+
+# Check out the default branch and set upstream tracking.
+function checkout_default() {
+  local output
+  if ! git checkout master >/dev/null 2>&1; then
+    echo -e "${red}Branch 'master' does not exist.${reset}"
+    if ! git checkout main >/dev/null 2>&1; then
+      echo -e "${red}Branch 'main' does not exist.${reset}"
+      return 1
+    else
+      output=$(git branch --set-upstream-to=origin/main main 2>&1)
+      if [[ "${output}" =~ error ]]; then
+        echo -e "${red}The requested upstream branch 'origin/main' does not exist.${reset}"
+        return 1
+      fi
+    fi
+  else
+    output=$(git branch --set-upstream-to=origin/master master 2>&1)
+    if [[ "${output}" =~ error ]]; then
+      echo -e "${red}The requested upstream branch 'origin/master' does not exist.${reset}"
+      return 1
+    fi
+  fi
 }
 
 master=false
@@ -90,57 +139,36 @@ eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
 for d in "${dir}"/*; do
   [ -d "${d}" ] || continue
   basename "${d}"
+
+  # Bare repository (worktree container).
+  if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    for w in "${d}"/*; do
+      [ -d "${w}" ] || continue
+      [ -f "${w}/.git" ] || continue
+      echo "  $(basename "${w}")"
+      pushd "${w}" >/dev/null || exit
+      do_pull
+      popd >/dev/null || exit
+    done
+    continue
+  fi
+
+  # Regular clone.
   if [ ! -d "${d}/.git" ]; then
     echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
 
   pushd "${d}" >/dev/null || exit
-
   if [ "${master}" == true ]; then
-    if ! git checkout master >/dev/null 2>&1; then
-      echo -e "${red}Branch 'master' does not exist.${reset}"
-      if ! git checkout main >/dev/null 2>&1; then
-        echo -e "${red}Branch 'main' does not exist.${reset}"
-        continue
-      else
-        output=$(git branch --set-upstream-to=origin/main main 2>&1)
-        if [[ "${output}" =~ error ]]; then
-          echo -e "${red}The requested upstream branch 'origin/main' does not exist.${reset}"
-          continue
-        fi
-      fi
-    else
-      output=$(git branch --set-upstream-to=origin/master master 2>&1)
-      if [[ "${output}" =~ error ]]; then
-        echo -e "${red}The requested upstream branch 'origin/master' does not exist.${reset}"
-        continue
-      fi
-    fi
+    checkout_default || {
+      popd >/dev/null || exit
+      continue
+    }
   fi
-
-  output=$(git pull 2>&1)
-
-  # Already up to date.
-  if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
-    echo -e "${green}Already up to date.${reset}"
-  # Successfully rebased and updated.
-  elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
-    echo -e "${green}Successfully rebased and updated${reset}"
-  # There is no tracking information for the current branch.
-  elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
-    echo -e "${yellow}There is no tracking information for the current branch."
-    git branch | grep "\*"
-    echo -e "${reset}"
-  # Updating abc1234..def5678.
-  elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]+\.\.[a-f0-9]+ ]]; then
-    echo -e "${yellow}Updating"
-    echo "${output}"
-    echo -e "${reset}"
-  else
-    echo -e "${red}Error"
-    echo "${output}"
-    echo -e "${reset}"
-  fi
+  do_pull
   popd >/dev/null || exit
 done
+
+# Clean up ssh-agent.
+ssh-agent -k >/dev/null 2>&1
