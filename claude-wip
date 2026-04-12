@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Append the most recent Claude Code session to tasks/wip.md.
+#
+# USAGE
+#   claude-wip
+#
+# The script reads the last entry from ~/.claude/history.jsonl, extracts the
+# session ID and project directory, looks up the session slug from the
+# conversation JSONL, and appends a `claude --resume` line to tasks/wip.md.
+
+set -euo pipefail
+
+HISTORY="${HOME}/.claude/history.jsonl"
+PROJECTS="${HOME}/.claude/projects"
+WIP="${HOME}/nickolashkraus/agent-os/tasks/wip.md"
+
+if [[ ! -f "${HISTORY}" ]]; then
+  echo "ERROR: ${HISTORY} not found." >&2
+  exit 1
+fi
+
+last=$(tail -n 1 "${HISTORY}")
+parsed=$(echo "${last}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(d['sessionId'])
+print(d['project'])
+")
+session_id=$(echo "${parsed}" | sed -n '1p')
+project=$(echo "${parsed}" | sed -n '2p')
+directory=$(basename "${project}")
+
+# The project path is encoded by replacing / with -.
+encoded_project=$(echo "${project}" | tr '/' '-')
+conversation="${PROJECTS}/${encoded_project}/${session_id}.jsonl"
+
+if [[ ! -f "${conversation}" ]]; then
+  echo "ERROR: Conversation file not found: ${conversation}" >&2
+  exit 1
+fi
+
+slug=$(python3 -c "
+import json, sys
+for line in open(sys.argv[1]):
+    d = json.loads(line)
+    if 'slug' in d:
+        print(d['slug'])
+        sys.exit(0)
+print('')
+" "${conversation}")
+
+name="${slug:-${session_id}}"
+line="claude --resume ${name}  # ${session_id}"
+
+echo "" >> "${WIP}"
+echo "## ${directory}" >> "${WIP}"
+echo "${line}" >> "${WIP}"
+
+echo "Added to ${WIP}:"
+echo "  ## ${directory}"
+echo "  ${line}"
