@@ -2,8 +2,8 @@
 #
 # DESCRIPTION
 #   Spawn a new tmux session for a vertical display.
-#   Creates a session using the name of the current directory with three
-#   panes in a vertical layout.
+#   Creates a session using the name of the current directory with three panes
+#   in a vertical layout.
 #
 #   NOTE: This script is specific to my local development environment.
 #
@@ -66,9 +66,9 @@ function tmux_new_v() {
   SESSION_NAME="${BASE_NAME}-${i}"
 
   tmux new-session -d -s "${SESSION_NAME}" \; \
-    split-window -h \; \
-    split-window -h -t 1 \; \
-    select-layout '3b4e,309x254,0,0[309x37,0,0,0,309x151,0,38,1,309x64,0,190,2]' \; \
+    split-window -v \; \
+    split-window -v \; \
+    select-layout 'ba62,308x253,0,0[308x36,0,0,8,308x152,0,37,10,308x63,0,190,9]' \; \
     select-pane -t 1 \; \
     attach-session -t "${SESSION_NAME}"
 }

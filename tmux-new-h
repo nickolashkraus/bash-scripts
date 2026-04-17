@@ -2,8 +2,8 @@
 #
 # DESCRIPTION
 #   Spawn a new tmux session for a horizontal display.
-#   Creates a session using the name of the current directory with two evenly
-#   spaced vertical panes.
+#   Creates a session using the name of the current directory with a left pane
+#   and a right pane split into top and bottom.
 #
 #   NOTE: This script is specific to my local development environment.
 #
@@ -66,8 +66,9 @@ function tmux_new_h() {
   SESSION_NAME="${BASE_NAME}-${i}"
 
   tmux new-session -d -s "${SESSION_NAME}" \; \
+    split-window -h \; \
     split-window -v \; \
-    select-layout 'e58b,554x141,0,0{276x141,0,0,4,277x141,277,0,5}' \; \
+    select-layout '8a4f,553x140,0,0{276x140,0,0,12,276x140,277,0[276x70,277,0,13,276x69,277,71,14]}' \; \
     select-pane -t 0 \; \
     attach-session -t "${SESSION_NAME}"
 }
