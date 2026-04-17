@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Apply a predefined tmux layout to the current window.
+#   Creates panes as needed to reach three panes, then applies the layout.
+#
+#   NOTE: This script is specific to my local development environment.
+#
+# USAGE
+#   tmux-layout <LAYOUT> [OPTIONS]
+#
+# ARGUMENTS
+#   LAYOUT    Layout to apply: "v" (vertical) or "h" (horizontal)
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   tmux-layout v
+#   tmux-layout h
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+LAYOUT_V='ba62,308x253,0,0[308x36,0,0,8,308x152,0,37,10,308x63,0,190,9]'
+LAYOUT_H='8a4f,553x140,0,0{276x140,0,0,12,276x140,277,0[276x70,277,0,13,276x69,277,71,14]}'
+
+# Print usage information.
+function usage() {
+  echo "usage: tmux-layout <LAYOUT> [OPTIONS]"
+  echo ""
+  echo "Arguments:"
+  echo "  LAYOUT    Layout to apply: \"v\" or \"h\""
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+LAYOUT=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -z "${LAYOUT}" ]]; then
+        LAYOUT="$1"
+      else
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "${LAYOUT}" ]]; then
+  echo -e "${red}ERROR: layout argument is required.${reset}" >&2
+  usage
+  exit 1
+fi
+
+if [[ "${LAYOUT}" != "v" && "${LAYOUT}" != "h" ]]; then
+  echo -e "${red}ERROR: layout must be \"v\" or \"h\".${reset}" >&2
+  usage
+  exit 1
+fi
+
+if ! [ -x "$(command -v tmux)" ]; then
+  echo -e "${red}ERROR: tmux is not installed.${reset}" >&2
+  exit 1
+fi
+
+if [[ -z "${TMUX}" ]]; then
+  echo -e "${red}ERROR: not inside a tmux session.${reset}" >&2
+  exit 1
+fi
+
+PANE_COUNT=$(tmux list-panes | wc -l | tr -d ' ')
+PANES_NEEDED=3
+
+while [[ "${PANE_COUNT}" -lt "${PANES_NEEDED}" ]]; do
+  tmux split-window -v
+  PANE_COUNT=$((PANE_COUNT + 1))
+done
+
+if [[ "${LAYOUT}" == "v" ]]; then
+  tmux select-layout "${LAYOUT_V}"
+  tmux select-pane -t 1
+else
+  tmux select-layout "${LAYOUT_H}"
+  tmux select-pane -t 0
+fi
