@@ -17,10 +17,6 @@
 # EXAMPLES
 #   None
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 # Print usage information.
 function usage() {
   echo "usage: yabai-upgrade [OPTIONS]"
