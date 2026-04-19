@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Upgrade yabai via Homebrew without freezing the UI.
+#
+#   Stops the yabai service before upgrading and restarts it after.
+#
+#   yabai is pinned (`brew pin yabai`) so `brew upgrade` skips it.
+#   Use this script to upgrade yabai explicitly.
+#
+# USAGE
+#   yabai-upgrade [OPTIONS]
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: yabai-upgrade [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+echo "Stopping yabai..."
+yabai --stop-service
+
+echo "Upgrading yabai..."
+HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade yabai
+
+echo "Starting yabai..."
+yabai --start-service
+
+echo "Done."
