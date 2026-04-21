@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Push all Git repositories within a given directory. Supports both regular
+#   clones and bare repository worktree containers.
+#
+# USAGE
+#   git-push [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -i, --identity-file    File for the identity (private key) for public key authentication
+#                          (optional, defaults to id_rsa)
+#   -d, --directory DIR    Directory to use (optional, defaults to the current directory)
+#   -h, --help             Show this help message
+#
+# EXAMPLES
+#   git-push
+#   git-push -i id_rsa_workiva
+
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: git-push [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
+  echo "                         (optional, defaults to id_rsa)"
+  echo "  -d, --directory DIR    Directory to use (optional, defaults to the current directory)"
+  echo "  -h, --help             Show this help message"
+  echo ""
+}
+
+# Push the current branch and print the result.
+function do_push() {
+  local output
+  output=$(git push 2>&1)
+  local exit_code=$?
+
+  if [[ "${output}" =~ Everything[[:space:]]up-to-date ]]; then
+    echo -e "${green}Everything up-to-date.${reset}"
+  elif [[ ${exit_code} -eq 0 ]]; then
+    echo -e "${yellow}Pushed"
+    echo "${output}"
+    echo -e "${reset}"
+  else
+    echo -e "${red}Error"
+    echo "${output}"
+    echo -e "${reset}"
+  fi
+}
+
+identity_file="id_rsa"
+dir=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -i | --identity-file)
+      identity_file=$2
+      shift 2
+      ;;
+    -d | --directory)
+      dir=$2
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "${dir}" ]; then
+  dir="$(pwd)"
+else
+  if [ ! -e "${dir}" ]; then
+    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    exit 1
+  fi
+fi
+
+eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
+  ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
+
+for d in "${dir}"/*; do
+  [ -d "${d}" ] || continue
+  basename "${d}"
+
+  # Bare repository (worktree container).
+  if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    for w in "${d}"/*; do
+      [ -d "${w}" ] || continue
+      [ -f "${w}/.git" ] || continue
+      echo "  $(basename "${w}")"
+      pushd "${w}" >/dev/null || exit
+      do_push
+      popd >/dev/null || exit
+    done
+    continue
+  fi
+
+  # Regular clone.
+  if [ ! -d "${d}/.git" ]; then
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
+    continue
+  fi
+
+  pushd "${d}" >/dev/null || exit
+  do_push
+  popd >/dev/null || exit
+done
+
+# Clean up ssh-agent.
+ssh-agent -k >/dev/null 2>&1
