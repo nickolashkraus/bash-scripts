@@ -33,6 +33,7 @@
 
 # Colors
 red='\033[0;31m'
+green='\033[0;32m'
 reset='\033[0m'
 
 # Print usage information.
@@ -128,13 +129,25 @@ EOF_URLS
   ((page++))
 done
 
+cloned=()
+
 for ssh_url in "${ssh_urls[@]}"; do
   echo Cloning "${ssh_url}"...
   output=$(git clone "${ssh_url}" 2>&1)
   if echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
+  else
+    cloned+=("$(basename "${ssh_url}" .git)")
   fi
 done
+
+if ((${#cloned[@]} > 0)); then
+  echo ""
+  echo -e "${green}Newly cloned repositories:${reset}"
+  for repo in "${cloned[@]}"; do
+    echo "  ${repo}"
+  done
+fi
 
 # Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1
