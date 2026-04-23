@@ -103,14 +103,34 @@ if ! [ -x "$(command -v gsed)" ]; then
   exit 1
 fi
 
+# Configure a single repository.
+function do_config() {
+  git config user.name "${user_name}" &&
+    git config user.email "${user_email}"
+  old_url="$(git remote get-url origin)"
+  new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/")
+  git remote set-url origin "${new_url}"
+}
+
 for d in *; do
-  if [ -d "${d}" ]; then
+  [ -d "${d}" ] || continue
+  basename "${d}"
+
+  # Bare repository (worktree container).
+  if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
     pushd "${d}" >/dev/null || exit
-    git config user.name "${user_name}" &&
-      git config user.email "${user_email}"
-    old_url="$(git remote get-url origin)"
-    new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/")
-    git remote set-url origin "${new_url}"
+    do_config
     popd >/dev/null || exit
+    continue
   fi
+
+  # Regular clone.
+  if [ ! -d "${d}/.git" ]; then
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
+    continue
+  fi
+
+  pushd "${d}" >/dev/null || exit
+  do_config
+  popd >/dev/null || exit
 done

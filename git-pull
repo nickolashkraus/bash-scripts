@@ -27,6 +27,13 @@ green='\033[0;32m'
 yellow='\033[0;33m'
 reset='\033[0m'
 
+# Stats counters.
+up_to_date=0
+updated=0
+no_tracking=0
+not_git=0
+errors=0
+
 # Print usage information.
 function usage() {
   echo "usage: git-pull [OPTIONS]"
@@ -47,20 +54,25 @@ function do_pull() {
 
   if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
     echo -e "${green}Already up to date.${reset}"
+    ((up_to_date++))
   elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
     echo -e "${green}Successfully rebased and updated${reset}"
+    ((updated++))
   elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
     echo -e "${yellow}There is no tracking information for the current branch."
     git branch | grep "\*"
     echo -e "${reset}"
+    ((no_tracking++))
   elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]+\.\.[a-f0-9]+ ]]; then
     echo -e "${yellow}Updating"
     echo "${output}"
     echo -e "${reset}"
+    ((updated++))
   else
     echo -e "${red}Error"
     echo "${output}"
     echo -e "${reset}"
+    ((errors++))
   fi
 }
 
@@ -156,6 +168,7 @@ for d in "${dir}"/*; do
   # Regular clone.
   if [ ! -d "${d}/.git" ]; then
     echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
+    ((not_git++))
     continue
   fi
 
@@ -169,6 +182,16 @@ for d in "${dir}"/*; do
   do_pull
   popd >/dev/null || exit
 done
+
+total=$((up_to_date + updated + no_tracking + not_git + errors))
+echo ""
+echo "Stats:"
+echo "  Total: ${total}"
+echo "  Up to date: ${up_to_date}"
+echo "  Updated: ${updated}"
+echo "  Errors: ${errors}"
+echo "  No tracking: ${no_tracking}"
+echo "  Not a repository: ${not_git}"
 
 # Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1

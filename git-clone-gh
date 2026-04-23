@@ -51,6 +51,7 @@ exclude_patterns=()
 
 # Colors
 red='\033[0;31m'
+green='\033[0;32m'
 yellow='\033[0;33m'
 reset='\033[0m'
 
@@ -206,6 +207,8 @@ if ((${#exclude_patterns[@]} > 0)); then
   mapfile -t filtered < <(printf '%s\n' "${ssh_urls[@]}" | grep -v -E "${pattern}")
 fi
 
+cloned=()
+
 for ssh_url in "${filtered[@]}"; do
   echo Cloning "${ssh_url}"...
   output=$(git clone "${ssh_url}" 2>&1)
@@ -218,8 +221,18 @@ for ssh_url in "${filtered[@]}"; do
     echo -e "${yellow}To access this repository, you must use the HTTPS remote with a personal access token${reset}" >&2
     echo -e "${yellow}or SSH with an SSH key and passphrase that has been authorized for this organization.${reset}" >&2
     exit 1
+  else
+    cloned+=("$(basename "${ssh_url}" .git)")
   fi
 done
+
+if ((${#cloned[@]} > 0)); then
+  echo ""
+  echo -e "${green}Newly cloned repositories:${reset}"
+  for repo in "${cloned[@]}"; do
+    echo "  ${repo}"
+  done
+fi
 
 # Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1
