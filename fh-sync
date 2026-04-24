@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Clone, configure, and pull all repositories for a Function Health GitHub
+#   organization.
+#
+#   Runs the following in sequence:
+#     1. git-clone-gh --org <org> $FH_GITHUB_TOKEN
+#     2. git-config-all 'Nickolas Kraus' nickolas.kraus@functionhealth.com github.com
+#     3. git-pull
+#
+#   The script validates that FH_GITHUB_TOKEN is set and that the current
+#   directory matches ~/<org> before proceeding.
+#
+# USAGE
+#   fh-sync [OPTIONS] ORG
+#
+# ARGUMENTS
+#   ORG    GitHub organization (Function-Health or
+#          Function-Health-Terraform-Modules)
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   cd ~/Function-Health && fh-sync Function-Health
+#   cd ~/Function-Health-Terraform-Modules && fh-sync Function-Health-Terraform-Modules
+
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+reset='\033[0m'
+
+# Valid organizations.
+valid_orgs=("Function-Health" "Function-Health-Terraform-Modules")
+
+# Print usage information.
+function usage() {
+  echo "usage: fh-sync [OPTIONS] ORG"
+  echo ""
+  echo "Arguments:"
+  echo "  ORG    GitHub organization (Function-Health or"
+  echo "         Function-Health-Terraform-Modules)"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+org=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      if [ -z "${org}" ]; then
+        org="$1"
+      else
+        echo "Too many arguments: $1" >&2
+        usage
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "${org}" ]; then
+  echo -e "${red}ERROR: Must specify an organization.${reset}" >&2
+  usage
+  exit 1
+fi
+
+# Validate organization.
+valid=false
+for v in "${valid_orgs[@]}"; do
+  if [ "${org}" = "${v}" ]; then
+    valid=true
+    break
+  fi
+done
+
+if [ "${valid}" = false ]; then
+  echo -e "${red}ERROR: Invalid organization '${org}'.${reset}" >&2
+  echo -e "${red}Valid organizations: ${valid_orgs[*]}${reset}" >&2
+  exit 1
+fi
+
+# Check FH_GITHUB_TOKEN.
+if [ -z "${FH_GITHUB_TOKEN}" ]; then
+  echo -e "${red}ERROR: FH_GITHUB_TOKEN is not set.${reset}" >&2
+  exit 1
+fi
+
+# Check current directory matches ~/<org>.
+expected="${HOME}/${org}"
+if [ "$(pwd)" != "${expected}" ]; then
+  echo -e "${red}ERROR: Current directory must be ${expected}.${reset}" >&2
+  echo -e "${red}Run: cd ${expected}${reset}" >&2
+  exit 1
+fi
+
+echo -e "${green}Cloning repositories...${reset}"
+git-clone-gh --org "${org}" "${FH_GITHUB_TOKEN}" || exit 1
+
+echo ""
+echo -e "${green}Configuring repositories...${reset}"
+git-config-all 'Nickolas Kraus' nickolas.kraus@functionhealth.com github.com || exit 1
+
+echo ""
+echo -e "${green}Pulling repositories...${reset}"
+git-pull
