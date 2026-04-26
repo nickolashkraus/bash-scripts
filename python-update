@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Update Python to the latest stable version using pyenv.
+#
+#   Installs the latest stable version of Python (excluding pre-releases) and
+#   sets it as the global default.
+#
+# USAGE
+#   python-update [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: python-update [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Load pyenv.
+export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
+if [ -d "${PYENV_ROOT}/bin" ]; then
+  export PATH="${PYENV_ROOT}/bin:${PATH}"
+fi
+
+if ! command -v pyenv >/dev/null 2>&1; then
+  echo -e "${red}ERROR: pyenv not found.${reset}" >&2
+  exit 1
+fi
+
+eval "$(pyenv init -)"
+
+# Determine the latest stable Python version (excluding pre-releases).
+latest="$(pyenv install --list |
+  grep -E '^[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+$' |
+  tail -1 |
+  tr -d '[:space:]')"
+
+if [ -z "${latest}" ]; then
+  echo -e "${red}ERROR: failed to determine latest Python version.${reset}" >&2
+  exit 1
+fi
+
+echo "Latest stable Python version: ${latest}"
+
+# Install the latest version (no-op if already installed).
+pyenv install --skip-existing "${latest}"
+
+# Set the latest version as the global default.
+pyenv global "${latest}"
