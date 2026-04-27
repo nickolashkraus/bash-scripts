@@ -143,8 +143,10 @@ repo_data_file=$(mktemp)
 results_file=$(mktemp)
 filtered_repos=$(mktemp)
 
-# Find all Git repositories.
+# Find all Git repositories (regular clones have .git dirs, worktrees have .git
+# files).
 find "${scan_dir}" -type d -name ".git" >"${repo_data_file}"
+find "${scan_dir}" -type f -name ".git" >>"${repo_data_file}"
 
 # Filter out excluded patterns.
 cat "${repo_data_file}" >"${filtered_repos}"
@@ -161,7 +163,7 @@ while read -r gitdir; do
   repo_name=$(basename "${repo_dir}")
 
   # Skip if not a valid Git repository.
-  if [ ! -f "${gitdir}/config" ]; then
+  if ! git -C "${repo_dir}" rev-parse --git-dir >/dev/null 2>&1; then
     continue
   fi
 
