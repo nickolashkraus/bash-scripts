@@ -66,10 +66,23 @@ fi
 for d in "${dir}"/*; do
   [ -d "${d}" ] || continue
   basename "${d}"
+
+  # Bare repository (worktree container).
+  if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    pushd "${d}" >/dev/null || exit
+    echo -e "${green}"
+    git remote -v
+    echo -e "${reset}"
+    popd >/dev/null || exit
+    continue
+  fi
+
+  # Regular clone.
   if [ ! -d "${d}/.git" ]; then
     echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
     continue
   fi
+
   pushd "${d}" >/dev/null || exit
   echo -e "${green}"
   git remote -v

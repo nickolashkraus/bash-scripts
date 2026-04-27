@@ -64,14 +64,8 @@ else
   fi
 fi
 
-for d in "${dir}"/*; do
-  [ -d "${d}" ] || continue
-  basename "${d}"
-  if [ ! -d "${d}/.git" ]; then
-    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
-    continue
-  fi
-  pushd "${d}" >/dev/null || exit
+function do_status() {
+  local output
   output=$(git status 2>&1)
   if [[ "${output}" =~ modified ]]; then
     echo -e "${red}Modified files${reset}"
@@ -82,5 +76,32 @@ for d in "${dir}"/*; do
   else
     echo -e "${green}Working tree clean${reset}"
   fi
+}
+
+for d in "${dir}"/*; do
+  [ -d "${d}" ] || continue
+  basename "${d}"
+
+  # Bare repository (worktree container).
+  if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    for w in "${d}"/*; do
+      [ -d "${w}" ] || continue
+      [ -f "${w}/.git" ] || continue
+      echo "  $(basename "${w}")"
+      pushd "${w}" >/dev/null || exit
+      do_status
+      popd >/dev/null || exit
+    done
+    continue
+  fi
+
+  # Regular clone.
+  if [ ! -d "${d}/.git" ]; then
+    echo -e "${red}$(basename "${d}") is not a Git repository.${reset}"
+    continue
+  fi
+
+  pushd "${d}" >/dev/null || exit
+  do_status
   popd >/dev/null || exit
 done
