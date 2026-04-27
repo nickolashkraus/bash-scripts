@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Update Node.js to the latest version using nvm.
+#
+#   Installs the latest version of Node.js, sets it as the default, and
+#   migrates global packages from the previously active version.
+#
+# USAGE
+#   node-update [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   None
+
+# Colors
+red='\033[0;31m'
+reset='\033[0m'
+
+# Print usage information.
+function usage() {
+  echo "usage: node-update [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Load nvm.
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+brew_prefix="$(brew --prefix 2>/dev/null)"
+if [ -s "${brew_prefix}/opt/nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  \. "${brew_prefix}/opt/nvm/nvm.sh"
+elif [ -s "${NVM_DIR}/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  \. "${NVM_DIR}/nvm.sh"
+else
+  echo -e "${red}ERROR: nvm not found.${reset}" >&2
+  exit 1
+fi
+
+# Install the latest version of Node.js, migrating global packages from the
+# currently active version.
+nvm install node --reinstall-packages-from=current
+
+# Set the latest version as the default.
+nvm alias default node
