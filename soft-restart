@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Simulate a macOS restart without rebooting. Quits all GUI applications,
+#   bounces user-space daemons, flushes DNS, and purges inactive memory.
+#
+#   tmux sessions and windows are preserved: the tmux server is a detached
+#   daemon that survives the death of its client (Terminal, iTerm, Ghostty,
+#   etc.). Re-attach after the script finishes with `tmux attach`.
+#
+#   Because this script needs to quit the terminal it was launched from,
+#   it re-execs itself detached (via nohup) on first invocation and logs
+#   to /tmp/soft-restart.log.
+#
+# USAGE
+#   soft-restart [OPTIONS]
+#
+# OPTIONS
+#   -n, --dry-run    Print what would happen without executing.
+#   -h, --help       Show this help message.
+#
+# EXAMPLES
+#   soft-restart
+#   soft-restart --dry-run
+
+set -euo pipefail
+
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+reset='\033[0m'
+
+DRY_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    -n | --dry-run) DRY_RUN=1 ;;
+    -h | --help)
+      sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      printf "${red}Unknown argument: %s${reset}\n" "$arg" >&2
+      exit 2
+      ;;
+  esac
+done
+
+LOG=/tmp/soft-restart.log
+
+run() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf "${yellow}DRY${reset} %s\n" "$*"
+  else
+    printf "${green}RUN${reset} %s\n" "$*"
+    eval "$@" || true
+  fi
+}
+
+if [[ "$DRY_RUN" -eq 0 && -z "${SOFT_RESTART_DETACHED:-}" ]]; then
+  printf "${yellow}==>${reset} Priming sudo (needed for purge + DNS flush)\n"
+  sudo -v
+
+  (while true; do
+    sudo -n true
+    sleep 30
+    kill -0 "$$" 2>/dev/null || exit
+  done) 2>/dev/null &
+
+  printf "${yellow}==>${reset} Detaching from terminal so we can quit it\n"
+  printf "    Log: %s\n" "$LOG"
+  printf "    Re-attach tmux with: tmux attach\n\n"
+
+  SOFT_RESTART_DETACHED=1 nohup "$0" "$@" >"$LOG" 2>&1 &
+  disown
+  exit 0
+fi
+
+KEEP_APPS=(
+  "Finder"
+  "loginwindow"
+  "WindowServer"
+  "Dock"
+  "SystemUIServer"
+  "Control Center"
+  "NotificationCenter"
+  "TextInputMenuAgent"
+  "universalaccessd"
+)
+
+echo "==> soft-restart started at $(date)"
+echo
+echo "==> Memory before:"
+vm_stat | sed -n '1,5p'
+echo
+
+echo "==> Quitting GUI applications"
+apps=$(osascript -e 'tell application "System Events" to get name of (every process whose background only is false)' |
+  tr ',' '\n' |
+  sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+while IFS= read -r app; do
+  [[ -z "$app" ]] && continue
+  skip=0
+  for keep in "${KEEP_APPS[@]}"; do
+    [[ "$app" == "$keep" ]] && skip=1 && break
+  done
+  [[ "$skip" -eq 1 ]] && continue
+  run "osascript -e 'tell application \"$app\" to quit'"
+done <<<"$apps"
+
+echo
+echo "==> Waiting for apps to exit"
+sleep 4
+
+echo
+echo "==> Force-quitting any stragglers"
+while IFS= read -r app; do
+  [[ -z "$app" ]] && continue
+  skip=0
+  for keep in "${KEEP_APPS[@]}"; do
+    [[ "$app" == "$keep" ]] && skip=1 && break
+  done
+  [[ "$skip" -eq 1 ]] && continue
+  run "pkill -x '$app' 2>/dev/null || true"
+done <<<"$apps"
+
+echo
+echo "==> Bouncing user-space daemons"
+run "killall Dock"
+run "killall Finder"
+run "killall SystemUIServer"
+run "killall cfprefsd"
+
+echo
+echo "==> Flushing DNS"
+run "sudo dscacheutil -flushcache"
+run "sudo killall -HUP mDNSResponder"
+
+echo
+echo "==> Purging inactive memory"
+run "sudo purge"
+
+echo
+echo "==> Memory after:"
+vm_stat | sed -n '1,5p'
+
+echo
+echo "==> soft-restart finished at $(date)"
+echo "    Re-attach tmux with: tmux attach"
