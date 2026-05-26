@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Clean tmux-resurrect snapshot files in
+#   ~/.local/share/tmux/resurrect.
+#
+#   One of --all, --all-but-last, or --keep N is required.
+#
+# USAGE
+#   tmux-resurrect-clean [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -a, --all             Delete every snapshot, pane_contents.tar.gz,
+#                         and the `last` symlink
+#   -l, --all-but-last    Delete every snapshot except the one `last`
+#                         points to
+#   -k, --keep N          Keep the N most recent snapshots, delete the
+#                         rest
+#   -n, --dry-run         Print what would be deleted without deleting
+#   -h, --help            Show this help message
+#
+# EXAMPLES
+#   tmux-resurrect-clean --all
+#   tmux-resurrect-clean --all-but-last
+#   tmux-resurrect-clean --keep 5
+#   tmux-resurrect-clean --keep 5 --dry-run
+
+# Colors
+red='\033[0;31m'
+yellow='\033[0;33m'
+reset='\033[0m'
+
+resurrect_dir="${HOME}/.local/share/tmux/resurrect"
+
+# Print usage information.
+function usage() {
+  echo "usage: tmux-resurrect-clean [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -a, --all             Delete every snapshot, pane_contents.tar.gz, and the \`last\` symlink"
+  echo "  -l, --all-but-last    Delete every snapshot except the one \`last\` points to"
+  echo "  -k, --keep N          Keep the N most recent snapshots, delete the rest"
+  echo "  -n, --dry-run         Print what would be deleted without deleting"
+  echo "  -h, --help            Show this help message"
+  echo ""
+}
+
+mode=""
+keep_n=""
+dry_run="false"
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -a | --all)
+      mode="all"
+      shift
+      ;;
+    -l | --all-but-last)
+      mode="all-but-last"
+      shift
+      ;;
+    -k | --keep)
+      mode="keep"
+      keep_n="$2"
+      if ! [[ "${keep_n}" =~ ^[0-9]+$ ]]; then
+        echo -e "${red}ERROR: --keep requires a non-negative integer.${reset}" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    -n | --dry-run)
+      dry_run="true"
+      shift
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "${mode}" ]; then
+  echo -e "${red}ERROR: must specify one of --all, --all-but-last, or --keep N.${reset}" >&2
+  usage
+  exit 1
+fi
+
+if [ ! -d "${resurrect_dir}" ]; then
+  echo -e "${red}ERROR: ${resurrect_dir} does not exist.${reset}" >&2
+  exit 1
+fi
+
+# Remove a file, honoring dry-run.
+function remove() {
+  local target="$1"
+  if [ "${dry_run}" = "true" ]; then
+    echo -e "${yellow}[dry-run]${reset} rm ${target}"
+  else
+    echo "rm ${target}"
+    rm -f "${target}"
+  fi
+}
+
+# Resolve `last` to an absolute path inside resurrect_dir, or empty if
+# the symlink is missing or dangling.
+function resolve_last() {
+  local last="${resurrect_dir}/last"
+  if [ ! -L "${last}" ]; then
+    echo ""
+    return
+  fi
+  local target
+  target="$(readlink "${last}")"
+  if [[ "${target}" != /* ]]; then
+    target="${resurrect_dir}/${target}"
+  fi
+  if [ ! -f "${target}" ]; then
+    echo ""
+    return
+  fi
+  echo "${target}"
+}
+
+function clean_all() {
+  shopt -s nullglob
+  for f in "${resurrect_dir}"/tmux_resurrect_*.txt; do
+    remove "${f}"
+  done
+  if [ -f "${resurrect_dir}/pane_contents.tar.gz" ]; then
+    remove "${resurrect_dir}/pane_contents.tar.gz"
+  fi
+  if [ -L "${resurrect_dir}/last" ]; then
+    remove "${resurrect_dir}/last"
+  fi
+}
+
+function clean_all_but_last() {
+  local last_target
+  last_target="$(resolve_last)"
+  if [ -z "${last_target}" ]; then
+    echo -e "${red}ERROR: \`last\` symlink is missing or dangling; nothing to preserve.${reset}" >&2
+    exit 1
+  fi
+  shopt -s nullglob
+  for f in "${resurrect_dir}"/tmux_resurrect_*.txt; do
+    if [ "${f}" != "${last_target}" ]; then
+      remove "${f}"
+    fi
+  done
+}
+
+function clean_keep() {
+  local n="$1"
+  shopt -s nullglob
+  local files=("${resurrect_dir}"/tmux_resurrect_*.txt)
+  if [ "${#files[@]}" -le "${n}" ]; then
+    echo "Nothing to delete (${#files[@]} snapshot(s), keeping ${n})."
+    return
+  fi
+
+  # Sort newest first by mtime.
+  local sorted
+  IFS=$'\n' read -r -d '' -a sorted < <(
+    stat -f '%m %N' "${files[@]}" | sort -rn | cut -d' ' -f2- && printf '\0'
+  )
+
+  local i=0
+  for f in "${sorted[@]}"; do
+    if [ "${i}" -ge "${n}" ]; then
+      remove "${f}"
+    fi
+    i=$((i + 1))
+  done
+
+  # If `last` is now dangling, repoint to the newest remaining snapshot.
+  if [ "${dry_run}" = "false" ] && [ -L "${resurrect_dir}/last" ]; then
+    local last_target
+    last_target="$(resolve_last)"
+    if [ -z "${last_target}" ]; then
+      local newest="${sorted[0]}"
+      echo "Repointing \`last\` -> $(basename "${newest}")"
+      ln -sfn "$(basename "${newest}")" "${resurrect_dir}/last"
+    fi
+  fi
+}
+
+case "${mode}" in
+  all)
+    clean_all
+    ;;
+  all-but-last)
+    clean_all_but_last
+    ;;
+  keep)
+    clean_keep "${keep_n}"
+    ;;
+esac
