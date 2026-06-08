@@ -186,12 +186,18 @@ fi
 page=1
 ssh_urls=()
 while true; do
-  mapfile -t urls <<EOF_URLS
-$(curl -L --silent -X GET \
+  response=$(curl -L --silent -X GET \
     --header "Authorization: Token ${access_token}" \
-    "https://api.github.com/${resource}?sort=full_name&page=${page}" |
-    jq -r "${jq_filter}")
-EOF_URLS
+    "https://api.github.com/${resource}?sort=full_name&page=${page}")
+
+  # If the response is not an array, GitHub returned an error object.
+  if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
+    echo -e "${red}ERROR: GitHub API error: ${msg}${reset}" >&2
+    exit 1
+  fi
+
+  mapfile -t urls < <(echo "${response}" | jq -r "${jq_filter}")
   # Check if the array is empty or contains only an empty string.
   if [ ${#urls[@]} -eq 0 ] || [ -z "${urls[0]}" ]; then
     break
