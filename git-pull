@@ -55,6 +55,9 @@ function do_pull() {
   if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
     echo -e "${green}Already up to date.${reset}"
     ((up_to_date++))
+  elif [[ "${output}" =~ Current[[:space:]]branch[[:space:]].*[[:space:]]is[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
+    echo -e "${green}${output}${reset}"
+    ((up_to_date++))
   elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
     echo -e "${green}Successfully rebased and updated${reset}"
     ((updated++))
