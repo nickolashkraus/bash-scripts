@@ -109,8 +109,22 @@ if [ "$(pwd)" != "${expected}" ]; then
   exit 1
 fi
 
+# Build exclude arguments from the per-org exclude file, if present. Each
+# non-blank, non-comment line is a repo name; it is anchored to the clone URL
+# so only the exact repository is excluded.
+exclude_args=()
+exclude_file="${expected}/.fh-sync-exclude"
+if [ -f "${exclude_file}" ]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="$(echo "${line}" | xargs)"
+    [ -z "${line}" ] && continue
+    exclude_args+=(--exclude "/${line}\.git$")
+  done < "${exclude_file}"
+fi
+
 echo -e "${green}Cloning repositories...${reset}"
-git-clone-gh --org "${org}" "${FH_GITHUB_TOKEN}" || exit 1
+git-clone-gh --org "${org}" "${exclude_args[@]}" "${FH_GITHUB_TOKEN}" || exit 1
 
 echo ""
 echo -e "${green}Configuring repositories...${reset}"
