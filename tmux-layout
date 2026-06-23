@@ -2,7 +2,8 @@
 #
 # DESCRIPTION
 #   Apply a predefined tmux layout to the current window.
-#   Creates panes as needed to reach three panes, then applies the layout.
+#   Creates panes as needed (three for "v", two for "h"), then applies the
+#   layout.
 #
 #   NOTE: This script is specific to my local development environment.
 #
@@ -23,8 +24,8 @@
 red='\033[0;31m'
 reset='\033[0m'
 
-LAYOUT_V='ba62,308x253,0,0[308x36,0,0,8,308x152,0,37,10,308x63,0,190,9]'
-LAYOUT_H='8a4f,553x140,0,0{276x140,0,0,12,276x140,277,0[276x70,277,0,13,276x69,277,71,14]}'
+LAYOUT_V='d9e5,264x205,0,0[264x30,0,0,2,264x122,0,31,3,264x51,0,154,4]'
+LAYOUT_H='7013,474x113,0,0{237x113,0,0,0,236x113,238,0,8}'
 
 # Print usage information.
 function usage() {
@@ -88,7 +89,12 @@ if [[ -z "${TMUX}" ]]; then
 fi
 
 PANE_COUNT=$(tmux list-panes | wc -l | tr -d ' ')
-PANES_NEEDED=3
+
+if [[ "${LAYOUT}" == "v" ]]; then
+  PANES_NEEDED=3
+else
+  PANES_NEEDED=2
+fi
 
 while [[ "${PANE_COUNT}" -lt "${PANES_NEEDED}" ]]; do
   tmux split-window -v
