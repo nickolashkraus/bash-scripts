@@ -150,13 +150,29 @@ fi
 
 # Set resource and check if GitHub user/organization exists.
 if [ -n "${user}" ]; then
-  resource="users/${user}/repos"
-  if ! curl --fail --silent "https://api.github.com/users/${user}" >/dev/null; then
-    echo -e "${red}ERROR: GitHub user does not exist.${reset}" >&2
+  # The /users/{username}/repos endpoint only returns public repositories, even
+  # when a token is supplied. To include private repositories, clone from the
+  # authenticated-user endpoint /user/repos, which is scoped to the token's own
+  # account and returns both public and private repositories.
+  resource="user/repos"
+  list_params="affiliation=owner&sort=full_name"
+  # /user/repos ignores ${user} and always returns the token owner's repos, so
+  # verify the token belongs to the requested user before cloning.
+  authenticated_user=$(curl -L --silent \
+    --header "Authorization: Token ${access_token}" \
+    "https://api.github.com/user" | jq -r '.login // empty')
+  if [ -z "${authenticated_user}" ]; then
+    echo -e "${red}ERROR: Could not authenticate with the provided token.${reset}" >&2
+    exit 1
+  fi
+  if [ "${authenticated_user}" != "${user}" ]; then
+    echo -e "${red}ERROR: Token belongs to '${authenticated_user}', not '${user}'.${reset}" >&2
+    echo -e "${yellow}Private repositories are only accessible for the token's own account.${reset}" >&2
     exit 1
   fi
 elif [ -n "${org}" ]; then
   resource="orgs/${org}/repos"
+  list_params="type=all&sort=full_name"
   if ! curl --fail --silent "https://api.github.com/orgs/${org}" >/dev/null; then
     echo -e "${red}ERROR: GitHub organization does not exist.${reset}" >&2
     exit 1
@@ -188,7 +204,7 @@ ssh_urls=()
 while true; do
   response=$(curl -L --silent -X GET \
     --header "Authorization: Token ${access_token}" \
-    "https://api.github.com/${resource}?sort=full_name&page=${page}")
+    "https://api.github.com/${resource}?${list_params}&page=${page}")
 
   # If the response is not an array, GitHub returned an error object.
   if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
