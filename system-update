@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Keep the local system up to date. Runs the daily maintenance sequence as a
+#   single self-contained job so it can be driven unattended by launchd.
+#
+#   Runs the following, isolating each step so one failure does not abort the
+#   rest:
+#     1. vim plugin clean/install/update (vim-plug)
+#     2. brew update && brew upgrade --yes
+#     3. fh-sync Function-Health
+#     4. fh-sync Function-Health-Terraform-Modules
+#     5. git-pull in ~/nickolashkraus
+#
+#   The script is environment-independent: it sets its own PATH (launchd jobs
+#   inherit no shell env) and reads FH_GITHUB_TOKEN from the Login Keychain
+#   rather than an interactive shell export.
+#
+# USAGE
+#   system-update [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   system-update
+#   launchctl kickstart -k gui/$(id -u)/com.nickolashkraus.system-update
+
+set -uo pipefail
+
+# Colors
+green='\033[0;32m'
+red='\033[0;31m'
+reset='\033[0m'
+
+# launchd starts jobs with a minimal PATH and no shell profile. Set the PATH
+# the steps need explicitly (Homebrew, ~/bin symlinks, system utilities).
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:${HOME}/bin:${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+# Non-interactive Homebrew: never prompt, never auto-update mid-command.
+export HOMEBREW_NO_ENV_HINTS=1
+export HOMEBREW_NO_INSTALL_CLEANUP=1
+
+failures=0
+
+function usage() {
+  echo "usage: system-update [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Run a labeled step. Logs a header and the outcome; a non-zero exit is
+# recorded but never aborts the remaining steps.
+function run_step() {
+  local label="$1"
+  shift
+  echo ""
+  echo -e "${green}==> ${label}${reset}"
+  if "$@"; then
+    echo -e "${green}==> ${label}: OK${reset}"
+  else
+    local status=$?
+    echo -e "${red}==> ${label}: FAILED (exit ${status})${reset}"
+    ((failures++))
+  fi
+}
+
+function update_vim() {
+  # PlugClean! (bang) skips the interactive confirmation prompt, which would
+  # otherwise hang with no TTY. Input is redirected from /dev/null so vim never
+  # blocks on a prompt.
+  vim +PlugClean! +qall </dev/null &&
+    vim +PlugInstall +qall </dev/null &&
+    vim +PlugUpdate +qall </dev/null
+}
+
+function update_brew() {
+  brew update && brew upgrade --yes
+}
+
+function sync_org() {
+  local org="$1"
+  cd "${HOME}/${org}" && fh-sync "${org}"
+}
+
+function pull_personal() {
+  cd "${HOME}/nickolashkraus" && git-pull
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+echo "=============================================================="
+echo "system-update: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "=============================================================="
+
+# fh-sync requires FH_GITHUB_TOKEN. In an unattended job it cannot come from an
+# interactive shell export, so read it from the Login Keychain.
+if [ -z "${FH_GITHUB_TOKEN:-}" ]; then
+  FH_GITHUB_TOKEN="$(security find-generic-password -s fh-github-token -a function-health -w 2>/dev/null)"
+  export FH_GITHUB_TOKEN
+fi
+
+run_step "vim plugins" update_vim
+run_step "Homebrew" update_brew
+
+if [ -n "${FH_GITHUB_TOKEN:-}" ]; then
+  run_step "fh-sync Function-Health" sync_org "Function-Health"
+  run_step "fh-sync Function-Health-Terraform-Modules" sync_org "Function-Health-Terraform-Modules"
+else
+  echo ""
+  echo -e "${red}==> fh-sync: SKIPPED (FH_GITHUB_TOKEN not found in Keychain)${reset}"
+  ((failures++))
+fi
+
+run_step "git-pull ~/nickolashkraus" pull_personal
+
+echo ""
+echo "=============================================================="
+if [ "${failures}" -eq 0 ]; then
+  echo -e "${green}system-update: complete, 0 failures${reset}"
+else
+  echo -e "${red}system-update: complete, ${failures} failure(s)${reset}"
+fi
+echo "=============================================================="
+
+exit "${failures}"
