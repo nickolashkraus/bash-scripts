@@ -79,10 +79,13 @@ function run_step() {
 function update_vim() {
   # PlugClean! (bang) skips the interactive confirmation prompt, which would
   # otherwise hang with no TTY. Input is redirected from /dev/null so vim never
-  # blocks on a prompt.
-  vim +PlugClean! +qall </dev/null &&
-    vim +PlugInstall +qall </dev/null &&
-    vim +PlugUpdate +qall </dev/null
+  # blocks on a prompt. --not-a-term drops the "Output is not to a terminal"
+  # warning and, more usefully, the two second delay vim adds after it, which
+  # this function would otherwise pay three times per run. It does not quiet
+  # vim-plug's redraws; the log still collects the escape sequences they emit.
+  vim --not-a-term +PlugClean! +qall </dev/null &&
+    vim --not-a-term +PlugInstall +qall </dev/null &&
+    vim --not-a-term +PlugUpdate +qall </dev/null
 }
 
 function update_brew() {
