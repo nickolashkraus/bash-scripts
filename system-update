@@ -11,6 +11,12 @@
 #     3. fh-sync Function-Health
 #     4. fh-sync Function-Health-Terraform-Modules
 #     5. git-pull in ~/nickolashkraus
+#     6. bash-scripts install
+#     7. dotfiles install
+#
+#   The two install steps run last so they act on the revisions the git-pull
+#   step just fetched. Each repo owns what its own install does; both are
+#   idempotent and safe to re-run daily.
 #
 #   The script is environment-independent: it sets its own PATH (launchd jobs
 #   inherit no shell env) and reads FH_GITHUB_TOKEN from the Login Keychain
@@ -27,7 +33,7 @@
 #
 # EXAMPLES
 #   system-update
-#   launchctl kickstart -k gui/$(id -u)/com.nickolashkraus.system-update
+#   launchctl kickstart -k gui/$(id -u)/io.nickolaskraus.system-update
 
 set -uo pipefail
 
@@ -92,6 +98,17 @@ function pull_personal() {
   cd "${HOME}/nickolashkraus" && git-pull
 }
 
+# Each install script is invoked from its own worktree, since an installer may
+# resolve what it installs relative to the working directory. Input is
+# redirected from /dev/null so an installer that prompts cannot block the run.
+function install_bash_scripts() {
+  cd "${HOME}/nickolashkraus/bash-scripts/master" && ./install </dev/null
+}
+
+function install_dotfiles() {
+  cd "${HOME}/nickolashkraus/dotfiles/master" && ./install </dev/null
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
     -h | --help)
@@ -135,6 +152,8 @@ else
 fi
 
 run_step "git-pull ~/nickolashkraus" pull_personal
+run_step "bash-scripts install" install_bash_scripts
+run_step "dotfiles install" install_dotfiles
 
 echo ""
 echo "=============================================================="
