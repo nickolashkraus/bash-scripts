@@ -209,3 +209,6 @@ echo "  Skipped: ${skipped}"
 
 # Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1
+
+# Propagate failures so callers can report them.
+[ "${errors}" -eq 0 ]
