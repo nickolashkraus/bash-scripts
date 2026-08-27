@@ -32,6 +32,7 @@ up_to_date=0
 updated=0
 no_tracking=0
 not_git=0
+skipped=0
 errors=0
 
 # Print usage information.
@@ -155,6 +156,15 @@ for d in "${dir}"/*; do
   [ -d "${d}" ] || continue
   basename "${d}"
 
+  # Repos marked sync.skip=true are intentionally never pulled, e.g., a repo
+  # deleted on the remote whose local clone is kept as the only copy. Mark
+  # with: git config sync.skip true
+  if [ "$(git -C "${d}" config --bool --get sync.skip 2>/dev/null)" = "true" ]; then
+    echo -e "${yellow}Skipped (sync.skip).${reset}"
+    ((skipped++))
+    continue
+  fi
+
   # Bare repository (worktree container).
   if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
     for w in "${d}"/*; do
@@ -186,7 +196,7 @@ for d in "${dir}"/*; do
   popd >/dev/null || exit
 done
 
-total=$((up_to_date + updated + no_tracking + not_git + errors))
+total=$((up_to_date + updated + no_tracking + not_git + skipped + errors))
 echo ""
 echo "Stats:"
 echo "  Total: ${total}"
@@ -195,6 +205,7 @@ echo "  Updated: ${updated}"
 echo "  Errors: ${errors}"
 echo "  No tracking: ${no_tracking}"
 echo "  Not a repository: ${not_git}"
+echo "  Skipped: ${skipped}"
 
 # Clean up ssh-agent.
 ssh-agent -k >/dev/null 2>&1
