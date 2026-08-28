@@ -48,10 +48,13 @@ function usage() {
   echo ""
 }
 
-# Pull the current branch and print the result.
+# Pull the current branch and print the result. --autostash keeps an unattended
+# run from failing on a dirty worktree, which is routine for repos holding
+# editor state or generated caches; a pop conflict still lands in the error
+# branch below.
 function do_pull() {
   local output
-  output=$(git pull 2>&1)
+  output=$(git pull --autostash 2>&1)
 
   if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
     echo -e "${green}Already up to date.${reset}"
