@@ -8,11 +8,12 @@
 #   rest:
 #     1. vim plugin clean/install/update (vim-plug)
 #     2. brew update && brew upgrade --yes
-#     3. fh-sync Function-Health
-#     4. fh-sync Function-Health-Terraform-Modules
-#     5. git-pull in ~/nickolashkraus
-#     6. bash-scripts install
-#     7. dotfiles install
+#     3. pipx upgrade-all && uv tool upgrade --all
+#     4. fh-sync Function-Health
+#     5. fh-sync Function-Health-Terraform-Modules
+#     6. git-pull in ~/nickolashkraus
+#     7. bash-scripts install
+#     8. dotfiles install
 #
 #   The two install steps run last so they act on the revisions the git-pull
 #   step just fetched. Each repo owns what its own install does; both are
@@ -92,6 +93,16 @@ function update_brew() {
   brew update && brew upgrade --yes
 }
 
+# Brew upgrades pipx and uv themselves, but not the tools they manage (ruff,
+# mypy, poetry via pipx; keyring, fh-internal-deps via uv). Run both upgrades
+# even if one fails so a single broken package cannot stall the other manager.
+function update_python_tools() {
+  local status=0
+  pipx upgrade-all || status=1
+  uv tool upgrade --all || status=1
+  return "${status}"
+}
+
 function sync_org() {
   local org="$1"
   cd "${HOME}/${org}" && fh-sync "${org}"
@@ -144,6 +155,7 @@ fi
 
 run_step "vim plugins" update_vim
 run_step "Homebrew" update_brew
+run_step "Python tools (pipx, uv)" update_python_tools
 
 if [ -n "${FH_GITHUB_TOKEN:-}" ]; then
   run_step "fh-sync Function-Health" sync_org "Function-Health"
