@@ -11,6 +11,10 @@
 #
 #     ./install
 #
+#   A failed link is reported and counted, but does not abort the rest of the
+#   run. The exit status is the number of failed links, so an unattended caller
+#   (`system-update`) sees a broken link rather than a silent success.
+#
 # USAGE
 #   install [OPTIONS]
 #
@@ -52,7 +56,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-mkdir -p "${HOME}"/bin
+failures=0
+
+# Without $HOME/bin every link below fails, so this one is fatal.
+if ! mkdir -p "${HOME}"/bin; then
+  echo "ERROR: could not create ${HOME}/bin" >&2
+  exit 1
+fi
 
 for f in "$(pwd)"/*; do
   # Skip if file a directory.
@@ -61,5 +71,15 @@ for f in "$(pwd)"/*; do
   [ ! -x "${f}" ] && continue
   # Skip if file is install script itself.
   [ "$(basename "${f}")" = "install" ] && continue
-  ln -sfn "${f}" "${HOME}/bin/$(basename "${f}")"
+  # The loop body runs in this shell, so the counter survives the iteration.
+  if ! ln -sfn "${f}" "${HOME}/bin/$(basename "${f}")"; then
+    echo "ERROR: could not link $(basename "${f}")" >&2
+    failures=$((failures + 1))
+  fi
 done
+
+if [ "${failures}" -ne 0 ]; then
+  echo "install: complete, ${failures} failure(s)" >&2
+fi
+
+exit "${failures}"

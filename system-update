@@ -63,6 +63,10 @@ function usage() {
 
 # Run a labeled step. Logs a header and the outcome; a non-zero exit is
 # recorded but never aborts the remaining steps.
+#
+# Steps are passed as function names, so shellcheck cannot see the call site
+# and reports each step function as never invoked. Hence the SC2329 directives
+# below.
 function run_step() {
   local label="$1"
   shift
@@ -77,6 +81,7 @@ function run_step() {
   fi
 }
 
+# shellcheck disable=SC2329
 function update_vim() {
   # PlugClean! (bang) skips the interactive confirmation prompt, which would
   # otherwise hang with no TTY. Input is redirected from /dev/null so vim never
@@ -89,6 +94,7 @@ function update_vim() {
     vim --not-a-term +PlugUpdate +qall </dev/null
 }
 
+# shellcheck disable=SC2329
 function update_brew() {
   brew update && brew upgrade --yes
 }
@@ -96,6 +102,7 @@ function update_brew() {
 # Brew upgrades pipx and uv themselves, but not the tools they manage (ruff,
 # mypy, poetry via pipx; keyring, fh-internal-deps via uv). Run both upgrades
 # even if one fails so a single broken package cannot stall the other manager.
+# shellcheck disable=SC2329
 function update_python_tools() {
   local status=0
   pipx upgrade-all || status=1
@@ -103,11 +110,13 @@ function update_python_tools() {
   return "${status}"
 }
 
+# shellcheck disable=SC2329
 function sync_org() {
   local org="$1"
   cd "${HOME}/${org}" && fh-sync "${org}"
 }
 
+# shellcheck disable=SC2329
 function pull_personal() {
   cd "${HOME}/nickolashkraus" && git-pull
 }
@@ -115,10 +124,12 @@ function pull_personal() {
 # Each install script is invoked from its own worktree, since an installer may
 # resolve what it installs relative to the working directory. Input is
 # redirected from /dev/null so an installer that prompts cannot block the run.
+# shellcheck disable=SC2329
 function install_bash_scripts() {
   cd "${HOME}/nickolashkraus/bash-scripts/master" && ./install </dev/null
 }
 
+# shellcheck disable=SC2329
 function install_dotfiles() {
   cd "${HOME}/nickolashkraus/dotfiles/master" && ./install </dev/null
 }
