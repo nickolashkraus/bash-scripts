@@ -54,9 +54,27 @@ function usage() {
 # branch below.
 function do_pull() {
   local output
+  local status
   output=$(git pull --autostash 2>&1)
+  status=$?
 
-  if [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
+  # A branch with no upstream exits non-zero, but it is its own category here,
+  # not a failure, so it is matched before the exit-status guard below.
+  if [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
+    echo -e "${yellow}There is no tracking information for the current branch."
+    git branch | grep "\*"
+    echo -e "${reset}"
+    ((no_tracking++))
+  # Trust the exit status over the output text. An aborted merge still prints
+  # "Updating <sha>..<sha>" as its first line, so the pattern below matched it
+  # and counted the repo as updated while it sat behind. Anything git calls a
+  # failure is an error here, whatever it printed.
+  elif (( status != 0 )); then
+    echo -e "${red}Error"
+    echo "${output}"
+    echo -e "${reset}"
+    ((errors++))
+  elif [[ "${output}" =~ Already[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
     echo -e "${green}Already up to date.${reset}"
     ((up_to_date++))
   elif [[ "${output}" =~ Current[[:space:]]branch[[:space:]].*[[:space:]]is[[:space:]]up[[:space:]]to[[:space:]]date\. ]]; then
@@ -65,11 +83,6 @@ function do_pull() {
   elif [[ "${output}" =~ Successfully[[:space:]]rebased[[:space:]]and[[:space:]]updated ]]; then
     echo -e "${green}Successfully rebased and updated${reset}"
     ((updated++))
-  elif [[ "${output}" =~ There[[:space:]]is[[:space:]]no[[:space:]]tracking[[:space:]]information[[:space:]]for[[:space:]]the[[:space:]]current[[:space:]]branch. ]]; then
-    echo -e "${yellow}There is no tracking information for the current branch."
-    git branch | grep "\*"
-    echo -e "${reset}"
-    ((no_tracking++))
   elif [[ "${output}" =~ Updating[[:space:]][a-f0-9]+\.\.[a-f0-9]+ ]]; then
     echo -e "${yellow}Updating"
     echo "${output}"
