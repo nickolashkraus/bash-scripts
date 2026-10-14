@@ -48,6 +48,17 @@ function usage() {
   echo ""
 }
 
+# Print the in-progress operation (rebase or merge) in the current worktree, or
+# nothing.
+function operation_in_progress() {
+  if [ -e "$(git rev-parse --git-path rebase-merge)" ] ||
+    [ -e "$(git rev-parse --git-path rebase-apply)" ]; then
+    echo rebase
+  elif [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+    echo merge
+  fi
+}
+
 # Pull the current branch and print the result. --autostash keeps an unattended
 # run from failing on a dirty worktree, which is routine for repos holding
 # editor state or generated caches; a pop conflict still lands in the error
@@ -55,8 +66,22 @@ function usage() {
 function do_pull() {
   local output
   local status
+  local before
+  local operation
+
+  before=$(operation_in_progress)
   output=$(git pull --autostash 2>&1)
   status=$?
+
+  # A conflicting pull leaves the worktree mid-rebase or mid-merge, and an
+  # unattended run must never strand a branch with conflict markers. Abort only
+  # an operation this pull started; one already in progress belongs to whoever
+  # started it. Aborting restores the branch and any autostashed changes.
+  operation=$(operation_in_progress)
+  if [ -z "${before}" ] && [ -n "${operation}" ] &&
+    git "${operation}" --abort >/dev/null 2>&1; then
+    output+=$'\n'"Aborted the conflicting ${operation}; the branch is unchanged."
+  fi
 
   # A branch with no upstream exits non-zero, but it is its own category here,
   # not a failure, so it is matched before the exit-status guard below.
