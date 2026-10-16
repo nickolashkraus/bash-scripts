@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Print where the cursor is in every running Vim: the file, the line and
+#   column, and the visual selection.
+#
+#   `.vimrc` starts a client-server socket in each Vim with
+#   `remote_startserver()`, and this script asks each one over it. A tool
+#   outside Vim, such as Claude Code, can then turn "this line" into a file
+#   and a line number.
+#
+#   One line per Vim:
+#
+#     <file>:<line>:<col> [selection <a>-<b>] [modified] (cwd <dir>, ...)
+#
+#   The selection is the live one in Visual mode, otherwise the last one
+#   (the '< and '> marks), labeled "last selection". It is omitted when
+#   there has been none.
+#
+# USAGE
+#   vim-cursor [OPTIONS] [DIR]
+#
+# ARGUMENTS
+#   DIR   Only show Vims whose file or working directory is under DIR
+#
+# OPTIONS
+#   -h, --help   Show this help message
+#
+# EXAMPLES
+#   vim-cursor
+#   vim-cursor ~/w/agent-os
+
+set -uo pipefail
+
+# Print usage information.
+function usage() {
+  echo "usage: vim-cursor [OPTIONS] [DIR]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help   Show this help message"
+  echo ""
+}
+
+# Print the expression each Vim evaluates. Its fields are joined by \x1f:
+# file, line, column, selection start and end, whether Visual mode is
+# active, whether the buffer is modified, and the working directory.
+function cursor_expr() {
+  cat <<'EOF'
+join([resolve(expand('%:p')), line('.'), col('.'),
+ mode() =~# "^[vV\<C-v>]" ? min([line('v'), line('.')]) : line("'<"),
+ mode() =~# "^[vV\<C-v>]" ? max([line('v'), line('.')]) : line("'>"),
+ mode() =~# "^[vV\<C-v>]", &modified, resolve(getcwd())], "\x1f")
+EOF
+}
+
+dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "ERROR: unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if ! dir="$(realpath "$1")"; then
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if ! command -v timeout >/dev/null; then
+  echo "ERROR: timeout is not installed (brew install coreutils)." >&2
+  exit 1
+fi
+
+expr="$(cursor_expr | tr -d '\n')"
+servers="$(vim --serverlist)"
+if [[ -z "${servers}" ]]; then
+  echo "No Vim servers found. Does .vimrc call remote_startserver()?" >&2
+  exit 1
+fi
+
+found=0
+while IFS= read -r server; do
+  if ! out="$(timeout 2 vim --servername "${server}" --remote-expr "${expr}" 2>/dev/null)"; then
+    continue
+  fi
+  IFS=$'\x1f' read -r file line col start end visual modified cwd <<<"${out}"
+  if [[ -n "${dir}" && "${file}" != "${dir}"/* && "${cwd}" != "${dir}" && "${cwd}" != "${dir}"/* ]]; then
+    continue
+  fi
+  where="${file:-[No Name]}:${line}:${col}"
+  if [[ "${visual}" == 1 ]]; then
+    where+=" selection ${start}-${end}"
+  elif [[ "${start}" -gt 0 ]]; then
+    where+=" last selection ${start}-${end}"
+  fi
+  if [[ "${modified}" == 1 ]]; then
+    where+=" modified"
+  fi
+  echo "${where} (cwd ${cwd}, server ${server})"
+  found=1
+done <<<"${servers}"
+
+if [[ "${found}" -eq 0 ]]; then
+  echo "No Vim matched${dir:+ under ${dir}}" >&2
+  exit 1
+fi
