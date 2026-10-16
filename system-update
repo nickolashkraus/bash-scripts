@@ -9,15 +9,16 @@
 #     1. vim plugin clean/install/update (vim-plug)
 #     2. brew update && brew upgrade --yes
 #     3. pipx upgrade-all && uv tool upgrade --all
-#     4. fh-sync Function-Health
-#     5. fh-sync Function-Health-Terraform-Modules
-#     6. git-pull in ~/nickolashkraus
-#     7. bash-scripts install
-#     8. dotfiles install
+#     4. fh-sync for each Function Health GitHub organization
+#     5. git-pull in ~/nickolashkraus
+#     6. bash-scripts install
+#     7. dotfiles install
+#     8. worktree-links
 #
 #   The two install steps run last so they act on the revisions the git-pull
 #   step just fetched. Each repo owns what its own install does; both are
-#   idempotent and safe to re-run daily.
+#   idempotent and safe to re-run daily. worktree-links runs after git-pull,
+#   so it uses the fetched revision.
 #
 #   The script is environment-independent: it sets its own PATH (launchd jobs
 #   inherit no shell env) and reads FH_GITHUB_TOKEN from the Login Keychain
@@ -134,6 +135,13 @@ function install_dotfiles() {
   cd "${HOME}/nickolashkraus/dotfiles/master" && ./install </dev/null
 }
 
+# Refresh the short worktree symlinks under $HOME/w. Invoked by path rather
+# than off PATH, since the install step above is what puts it on PATH.
+# shellcheck disable=SC2329
+function refresh_worktree_links() {
+  "${HOME}/nickolashkraus/bash-scripts/master/worktree-links" --quiet
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
     -h | --help)
@@ -180,6 +188,7 @@ fi
 run_step "git-pull ~/nickolashkraus" pull_personal
 run_step "bash-scripts install" install_bash_scripts
 run_step "dotfiles install" install_dotfiles
+run_step "worktree-links" refresh_worktree_links
 
 echo ""
 echo "=============================================================="
