@@ -1,0 +1,283 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Maintain short symlinks to every Git worktree under $HOME/w.
+#
+#   A worktree path like
+#
+#     ~/src/example-service/abc-123-short-description-of-the-work
+#
+#   becomes
+#
+#     ~/w/es-123-short
+#
+#   Every Bash call made in a worktree pays the long form, because the
+#   shell working directory resets between calls, so the prefix is retyped
+#   on each one. Over a long session that is thousands of repetitions.
+#
+#   Naming: <repo-short>-<issue-number>[-<word>], or <repo-short> alone for
+#   the default worktree (main, master, dev). The issue number comes from a
+#   branch slug like `abc-123-...`. A trailing word is added only when two
+#   worktrees of one repo share an issue number, which happens whenever one
+#   ticket is worked in two repositories at the same time.
+#
+#   Repo short names come from the table in short_name(), so whatever short
+#   name a repository goes by elsewhere and `~/w/<short>` agree.
+#
+#   A link keeps its name for as long as its worktree exists, so adding a
+#   worktree never moves a name an agent is already using; the new one takes
+#   the qualified or numbered name instead.
+#
+#   $HOME/w is fully managed: every symlink there that does not point at
+#   a current worktree is removed, including one made by hand. Nothing
+#   outside $HOME/w is touched, and non-symlink entries there are left alone.
+#
+# USAGE
+#   worktree-links [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -n, --dry-run    Print what would change; create nothing
+#   -q, --quiet      Print only the summary line
+#   -h, --help       Show this help message
+#
+# EXAMPLES
+#   worktree-links
+#   worktree-links --dry-run
+
+set -uo pipefail
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  echo "ERROR: worktree-links needs bash 4 or later for associative arrays." >&2
+  exit 1
+fi
+
+LINK_DIR="${WORKTREE_LINK_DIR:-${HOME}/w}"
+
+# Directories scanned for bare repositories, one repo per subdirectory.
+SCAN_DIRS=(
+  "${HOME}/Function-Health"
+  "${HOME}/nickolashkraus"
+  "${HOME}/Function-Health-Terraform-Modules"
+  "${HOME}/infrable-io"
+  "${HOME}/grind-rip"
+)
+
+dry_run=0
+quiet=0
+
+# Print usage information.
+function usage() {
+  echo "usage: worktree-links [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -n, --dry-run    Print what would change; create nothing"
+  echo "  -q, --quiet      Print only the summary line"
+  echo "  -h, --help       Show this help message"
+  echo ""
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n | --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -q | --quiet)
+      quiet=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if ! [ -x "$(command -v git)" ]; then
+  echo "ERROR: git is not installed." >&2
+  exit 1
+fi
+
+# Map a repository directory name to its short form. Falls back to the
+# initials of the hyphenated segments.
+function short_name() {
+  case "$1" in
+    sre-infra-terraform) echo "sre" ;;
+    member-journey-services) echo "mjs" ;;
+    member-app-middleware) echo "mam" ;;
+    member-app) echo "app" ;;
+    transaction-service) echo "ts" ;;
+    membership-service) echo "memb" ;;
+    ppp-service) echo "ppp" ;;
+    enterprise-service) echo "ent" ;;
+    admin-app-fe-next) echo "admin" ;;
+    frontend-mono) echo "fe" ;;
+    agent-os) echo "agent-os" ;;
+    dotfiles) echo "dot" ;;
+    bash-scripts) echo "bs" ;;
+    *)
+      awk -F- '{s="";for(i=1;i<=NF;i++)s=s substr($i,1,1);print s}' \
+        <<<"$1"
+      ;;
+  esac
+}
+
+# Derive the key that distinguishes a worktree within its repository.
+# Prints an empty string for the repo's default worktree.
+function worktree_key() {
+  local base
+  base=$(tr '[:upper:]' '[:lower:]' <<<"$1")
+  case "${base}" in
+    main | master | dev | develop | trunk) echo "" ;;
+    release-*)
+      # A release branch's digits are a date, not an issue, so keying on
+      # them would read as `<repo>-2026`.
+      echo "rel"
+      ;;
+    *)
+      # A branch slug such as `abc-123-short-description` reduces
+      # to the issue number; anything else keeps its first two segments.
+      if [[ "${base}" =~ ^[a-z]+-([0-9]+)(-(.*))?$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+      else
+        cut -d- -f1-2 <<<"${base}"
+      fi
+      ;;
+  esac
+}
+
+# The first word that distinguishes two worktrees sharing an issue number.
+function worktree_qualifier() {
+  local base
+  base=$(tr '[:upper:]' '[:lower:]' <<<"$1")
+  if [[ "${base}" =~ ^[a-z]+-[0-9]+-([a-z0-9]+) ]]; then
+    echo "${BASH_REMATCH[1]}"
+  else
+    echo ""
+  fi
+}
+
+declare -a wt_path=()
+declare -a wt_name=()
+declare -A name_count=()
+
+# Collect every worktree of every bare repository found in SCAN_DIRS.
+for scan in "${SCAN_DIRS[@]}"; do
+  [ -d "${scan}" ] || continue
+  for repo in "${scan}"/*; do
+    [ -d "${repo}" ] || continue
+    repo_name=$(basename "${repo}")
+    # A bare repo in this layout holds HEAD and a worktrees directory.
+    [ -f "${repo}/HEAD" ] && [ -d "${repo}/worktrees" ] || continue
+    short=$(short_name "${repo_name}")
+    while IFS= read -r line; do
+      [[ "${line}" == worktree\ * ]] || continue
+      path="${line#worktree }"
+      # Skip the bare repository's own entry; it has no checkout.
+      [ "${path}" = "${repo}" ] && continue
+      [ -d "${path}" ] || continue
+      key=$(worktree_key "$(basename "${path}")")
+      # A branch already named after its repo would stutter, as in
+      # `admin-admin-coupon`.
+      key="${key#"${short}"-}"
+      if [ -z "${key}" ]; then
+        name="${short}"
+      else
+        name="${short}-${key}"
+      fi
+      wt_path+=("${path}")
+      wt_name+=("${name}")
+      name_count["${name}"]=$((${name_count["${name}"]:-0} + 1))
+    done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null)
+  done
+done
+
+# Reserve the name of every existing link that still points at a current
+# worktree before naming the rest.
+declare -A wanted=()
+declare -A linked=()
+declare -A is_worktree=()
+for path in "${wt_path[@]}"; do is_worktree["${path}"]=1; done
+if [ -d "${LINK_DIR}" ]; then
+  for entry in "${LINK_DIR}"/*; do
+    [ -L "${entry}" ] || continue
+    target=$(readlink "${entry}")
+    [ -n "${is_worktree["${target}"]:-}" ] || continue
+    [ -z "${linked["${target}"]:-}" ] || continue
+    wanted["$(basename "${entry}")"]="${target}"
+    linked["${target}"]=1
+  done
+fi
+
+# Disambiguate the names that two or more worktrees landed on.
+for i in "${!wt_path[@]}"; do
+  name="${wt_name[${i}]}"
+  path="${wt_path[${i}]}"
+  [ -n "${linked["${path}"]:-}" ] && continue
+  if [ "${name_count["${name}"]}" -gt 1 ]; then
+    qual=$(worktree_qualifier "$(basename "${path}")")
+    [ -n "${qual}" ] && name="${name}-${qual}"
+  fi
+  # A name that is still taken gets a numeric suffix rather than silently
+  # overwriting the earlier worktree's link.
+  if [ -n "${wanted["${name}"]:-}" ]; then
+    n=2
+    while [ -n "${wanted["${name}-${n}"]:-}" ]; do n=$((n + 1)); done
+    name="${name}-${n}"
+  fi
+  wanted["${name}"]="${path}"
+done
+
+created=0
+updated=0
+removed=0
+
+if [ "${dry_run}" -eq 0 ]; then
+  mkdir -p "${LINK_DIR}" || exit 1
+fi
+
+# Remove links that no longer describe a current worktree.
+if [ -d "${LINK_DIR}" ]; then
+  for entry in "${LINK_DIR}"/*; do
+    [ -L "${entry}" ] || continue
+    name=$(basename "${entry}")
+    target=$(readlink "${entry}")
+    if [ "${wanted["${name}"]:-}" != "${target}" ]; then
+      if [ -z "${wanted["${name}"]:-}" ]; then
+        [ "${quiet}" -eq 1 ] || echo "  remove  ${name} -> ${target}"
+        [ "${dry_run}" -eq 1 ] || rm -f "${entry}"
+        removed=$((removed + 1))
+      fi
+    fi
+  done
+fi
+
+for name in $(printf '%s\n' "${!wanted[@]}" | sort); do
+  path="${wanted["${name}"]}"
+  link="${LINK_DIR}/${name}"
+  if [ -L "${link}" ]; then
+    [ "$(readlink "${link}")" = "${path}" ] && continue
+    [ "${quiet}" -eq 1 ] || echo "  update  ${name} -> ${path}"
+    [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"
+    updated=$((updated + 1))
+  elif [ -e "${link}" ]; then
+    echo "  SKIP    ${name} exists and is not a symlink" >&2
+  else
+    [ "${quiet}" -eq 1 ] || echo "  create  ${name} -> ${path}"
+    [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"
+    created=$((created + 1))
+  fi
+done
+
+prefix=""
+[ "${dry_run}" -eq 1 ] && prefix="(dry run) "
+echo "${prefix}${LINK_DIR}: ${#wanted[@]} worktrees," \
+  "${created} created, ${updated} updated, ${removed} removed"
