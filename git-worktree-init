@@ -15,8 +15,8 @@
 #   -h, --help    Show this help message
 #
 # EXAMPLES
-#   git-worktree-init transaction-service
-#   git-worktree-init ~/Function-Health/transaction-service
+#   git-worktree-init example-service
+#   git-worktree-init ~/src/example-service
 
 # Colors
 red='\033[0;31m'
