@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Review and edit a pull request description without opening a browser.
+#
+#   Fetches the description, opens it in $EDITOR, lints it with the outbound
+#   Claude hooks, shows the diff, and pushes it after confirmation.
+#
+#   The buffer lives in the worktree's own gitdir, which in a worktree layout
+#   sits outside the checkout, so it is never committable and each worktree
+#   keeps its own. A pristine copy of what GitHub returned sits beside it.
+#   That copy is what makes an unchanged body skip the push, and what catches
+#   an edit someone else made while the buffer was open: without it, a push
+#   silently overwrites them.
+#
+#   `--check` adds a spelling and fact check before the push. Spelling errors
+#   are fixed in the buffer and reported, and the diff shown at the push prompt
+#   includes them. A claim the pull request's diff contradicts blocks the push,
+#   since only the author knows whether the description or the code is wrong.
+#
+#   Environment:
+#     PR_BODY_DEEP_LINT=1       Also run rule-check.py (a Sonnet call)
+#     PR_BODY_ASSUME_YES=1      Push without the confirmation prompt
+#     PR_BODY_CHECK_MODEL=M     Model for `--check` (defaults to sonnet)
+#
+# USAGE
+#   pr-body [OPTIONS] [PR]
+#
+# ARGUMENTS
+#   PR    Pull request number, URL, or branch (optional, defaults to the current
+#         worktree's pull request)
+#
+# OPTIONS
+#   --show        Render the description GitHub currently has
+#   --diff        Show what the local buffer would change
+#   --check       Spell-check and fact-check against the diff before pushing
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   pr-body
+#   pr-body --check 1234
+#   pr-body --show https://github.com/owner/repo/pull/1234
+
+# Print usage information.
+function usage() {
+  echo "usage: pr-body [OPTIONS] [PR]"
+  echo ""
+  echo "Arguments:"
+  echo "  PR    Pull request number, URL, or branch (optional, defaults to the current"
+  echo "        worktree's pull request)"
+  echo ""
+  echo "Options:"
+  echo "  --show        Render the description GitHub currently has"
+  echo "  --diff        Show what the local buffer would change"
+  echo "  --check       Spell-check and fact-check against the diff before pushing"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+# Prompt for a single y/n keystroke. Succeeds only on y or Y.
+function confirm() {
+  local reply
+  read -r -n 1 -p "$1 [y/N] " reply
+  echo
+  [[ ${reply} == [yY] ]]
+}
+
+# Run the outbound hooks against a body file exactly as a tool call would.
+#
+# Editing a description on GitHub skips these entirely, so this is the only
+# path where the typography rules actually gate the text.
+#
+# Only the deterministic pass runs by default. rule-check.py costs a Sonnet
+# call, which put ten-odd seconds of silence between saving the buffer and the
+# push prompt, and its job is catching agent slop rather than grading prose
+# written by hand.
+function lint() {
+  local file=$1 number=$2 repo=$3 payload
+  payload=$(
+    python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))' \
+      "gh pr edit ${number} --repo ${repo} --body-file ${file}"
+  ) || return 1
+  printf '%s\n' "${payload}" | python3 "${HOME}/.claude/hooks/lint-outbound.py" || return 1
+  if [[ -n ${PR_BODY_DEEP_LINT} ]]; then
+    printf 'pr-body: running the deep lint (Sonnet call)... '
+    printf '%s\n' "${payload}" | python3 "${HOME}/.claude/hooks/rule-check.py" || {
+      echo
+      return 1
+    }
+    echo "clean"
+  fi
+}
+
+# Fix spelling in the buffer and fact-check it against the pull request's diff.
+#
+# Returns 1 when something blocks the push (a contradicted claim, or a spelling
+# fix that could not be placed unambiguously) and 2 when the check itself
+# failed. The call runs from the temp directory with settings and MCP servers
+# off, which keeps its fixed overhead near 1K tokens instead of 390K.
+function check() {
+  python3 -u - "$@" <<'PY'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+
+body_file, number, repo, title, model = sys.argv[1:6]
+MAX_DIFF_CHARS = 100_000
+
+SYSTEM = (
+    "You proofread pull request descriptions against their diffs. Report only "
+    "clear errors; when unsure, report nothing."
+)
+
+PROMPT = """Check this pull request description for two kinds of error.
+
+Spelling: misspelled words, repeated words, and wrong homophones in prose. For each, set `original` to an exact substring of the description that contains the error plus enough neighboring words to occur only once, and `fix` to the same substring with only the error corrected. Never touch code spans, fenced code blocks, URLs, file paths, identifiers, or proper nouns, and never change wording, style, punctuation, or formatting.
+
+Facts: statements about this change that the diff contradicts. The description may say the change adds, removes, renames, or modifies something the diff does not, or give a name, path, flag, number, or behavior that differs from what the diff shows. Quote the statement in `claim` and say what the diff shows in `problem`. References to code the change does not touch, and context the diff cannot speak to (motivation, incidents, tickets, other repositories), are not errors.{truncated}
+
+Return empty arrays when there is nothing to report.
+
+<title>
+{title}
+</title>
+
+<description>
+{body}
+</description>
+
+<changed_files>
+{names}
+</changed_files>
+
+<diff>
+{diff}
+</diff>
+"""
+
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "spelling": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"original": {"type": "string"}, "fix": {"type": "string"}},
+                "required": ["original", "fix"],
+            },
+        },
+        "facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"claim": {"type": "string"}, "problem": {"type": "string"}},
+                "required": ["claim", "problem"],
+            },
+        },
+    },
+    "required": ["spelling", "facts"],
+}
+
+
+def fail(msg: str) -> None:
+    print(f"pr-body: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+
+
+diff = run(["gh", "pr", "diff", number, "--repo", repo])
+names = run(["gh", "pr", "diff", number, "--repo", repo, "--name-only"])
+if diff.returncode or names.returncode:
+    fail(f"could not fetch the diff: {(diff.stderr or names.stderr).strip()}")
+
+body = Path(body_file).read_text()
+truncated = len(diff.stdout) > MAX_DIFF_CHARS
+prompt = PROMPT.format(
+    truncated=(
+        " The diff is truncated, so never report something as missing from it;"
+        " report only contradictions with what is shown."
+        if truncated
+        else ""
+    ),
+    title=title,
+    body=body,
+    names=names.stdout.strip(),
+    diff=diff.stdout[:MAX_DIFF_CHARS],
+)
+
+try:
+    result = run(
+        [
+            "claude", "--print", "--model", model, "--tools", "",
+            "--strict-mcp-config", "--setting-sources", "",
+            "--no-session-persistence", "--system-prompt", SYSTEM,
+            "--output-format", "json", "--json-schema", json.dumps(SCHEMA),
+        ],
+        input=prompt,
+        cwd=tempfile.gettempdir(),
+        timeout=180,
+    )
+except subprocess.TimeoutExpired:
+    fail("the check timed out")
+if result.returncode:
+    fail(f"claude exited {result.returncode}: {result.stderr.strip()[:300]}")
+try:
+    out = json.loads(result.stdout).get("structured_output")
+except json.JSONDecodeError:
+    out = None
+if not isinstance(out, dict):
+    fail("the check returned no verdict")
+
+fixed, unplaced = [], []
+for s in out.get("spelling") or []:
+    original, fix = s.get("original", ""), s.get("fix", "")
+    if not original or original == fix:
+        continue
+    matches = body.count(original)
+    if matches == 1:
+        body = body.replace(original, fix)
+        fixed.append((original, fix))
+    else:
+        unplaced.append((original, fix, matches))
+if fixed:
+    Path(body_file).write_text(body)
+facts = out.get("facts") or []
+
+if fixed:
+    print(f"pr-body: fixed {len(fixed)} spelling error(s) in the buffer:")
+    for original, fix in fixed:
+        print(f"  {original} -> {fix}")
+if unplaced:
+    print(f"pr-body: {len(unplaced)} spelling error(s) to fix by hand:", file=sys.stderr)
+    for original, fix, matches in unplaced:
+        print(f"  {original} -> {fix} (matched {matches} times)", file=sys.stderr)
+if facts:
+    print(f"pr-body: {len(facts)} claim(s) the diff contradicts:", file=sys.stderr)
+    for f in facts:
+        print(f"  {f.get('claim', '')}", file=sys.stderr)
+        print(f"    {f.get('problem', '')}", file=sys.stderr)
+if not (fixed or unplaced or facts):
+    print("pr-body: spelling and facts clean")
+sys.exit(1 if unplaced or facts else 0)
+PY
+}
+
+mode="edit"
+run_check=""
+check_model=${PR_BODY_CHECK_MODEL:-sonnet}
+target=()
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --show)
+      mode="show"
+      shift
+      ;;
+    --diff)
+      mode="diff"
+      shift
+      ;;
+    --check)
+      run_check=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ ${#target[@]} -gt 0 ]]; then
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+      fi
+      target=("$1")
+      shift
+      ;;
+  esac
+done
+
+gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
+  echo "pr-body: not a git repository" >&2
+  exit 1
+}
+
+# `url` is read so every later call can name the repo explicitly. Resolving the
+# target once and then passing a bare number makes every subsequent call
+# resolve against the current directory instead, which fails whenever the
+# argument was a URL for some other repository.
+meta=$(gh pr view "${target[@]}" --json number,title,url --jq '[.number, .title, .url] | @tsv' 2>/dev/null) || {
+  echo "pr-body: no pull request found; pass a number or URL" >&2
+  exit 1
+}
+IFS=$'\t' read -r number title url <<<"${meta}"
+repo=${url#https://github.com/}
+repo=${repo%/pull/*}
+
+file="${gitdir}/pr-body.md"
+remote="${gitdir}/pr-body.remote.md"
+fetched="${gitdir}/pr-body.fetched.md"
+
+# `--template` writes the body's exact bytes; `--jq` appends a newline.
+function fetch_body() {
+  gh pr view "${number}" --repo "${repo}" --json body --template '{{.body}}' >"$1"
+}
+
+# The editor may add or keep a final newline, so compare without trailing
+# newlines.
+function same() {
+  [[ "$(<"$1")" == "$(<"$2")" ]]
+}
+
+fetch_body "${fetched}" || exit 1
+
+if [[ ${mode} == show ]]; then
+  if command -v bat >/dev/null; then
+    bat --style=plain --language=md --paging=never "${fetched}"
+  else
+    cat "${fetched}"
+  fi
+  rm -f "${fetched}"
+  exit 0
+fi
+
+# The buffer predates a change made on GitHub, so pushing it would discard
+# that change. Show what would be lost before going further.
+if [[ -f ${file} && -f ${remote} ]] && ! same "${remote}" "${fetched}"; then
+  echo "pr-body: #${number} changed on GitHub since this buffer was fetched." >&2
+  diff -u --label "what you fetched" --label "GitHub now" "${remote}" "${fetched}" >&2
+  echo "" >&2
+  echo "Pushing the buffer discards that. To start from GitHub's version:" >&2
+  echo "  rm ${file}" >&2
+  if ! confirm "Keep the local buffer anyway?"; then
+    rm -f "${fetched}"
+    exit 1
+  fi
+fi
+
+[[ -f ${file} ]] || cp "${fetched}" "${file}"
+cp "${fetched}" "${remote}"
+rm -f "${fetched}"
+
+if [[ ${mode} == diff ]]; then
+  diff -u --label "#${number} on GitHub" --label "your local buffer" "${remote}" "${file}"
+  exit $?
+fi
+
+# EDITOR may carry arguments (e.g., `code -w`), so it is split on purpose.
+# shellcheck disable=SC2086
+${EDITOR:-vim} "${file}" || exit 1
+
+if same "${file}" "${remote}"; then
+  echo "pr-body: #${number} unchanged, nothing to push."
+  exit 0
+fi
+
+if [[ -n ${run_check} ]]; then
+  echo "pr-body: checking spelling and facts (${check_model} call)..."
+  check "${file}" "${number}" "${repo}" "${title}" "${check_model}"
+  case $? in
+    0) ;;
+    1)
+      echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
+      echo "pr-body: rerun without --check to push it anyway" >&2
+      exit 1
+      ;;
+    *)
+      echo "pr-body: #${number} not pushed; rerun without --check to skip the check" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+diff -u --label "#${number} on GitHub" --label "your local buffer" "${remote}" "${file}"
+echo
+
+lint "${file}" "${number}" "${repo}" || {
+  echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
+  exit 1
+}
+
+# PR_BODY_ASSUME_YES exists so this is scriptable: the prompt needs a
+# terminal, so without it there is no way to reach the push from
+# a non-interactive shell, which also makes the push path untestable.
+if [[ -z ${PR_BODY_ASSUME_YES} ]]; then
+  if [[ ! -t 0 ]]; then
+    echo "pr-body: no terminal to confirm on; set PR_BODY_ASSUME_YES=1 to push" >&2
+    echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
+    exit 1
+  fi
+  if ! confirm "Push this description to #${number}?"; then
+    echo "pr-body: #${number} not pushed; the buffer is kept at ${file}"
+    exit 1
+  fi
+fi
+
+# Someone may have edited the description on GitHub while the buffer was
+# open, and pushing now would discard that edit.
+fetch_body "${fetched}" || exit 1
+if ! same "${remote}" "${fetched}"; then
+  echo "pr-body: #${number} changed on GitHub while the buffer was open." >&2
+  diff -u --label "what you fetched" --label "GitHub now" "${remote}" "${fetched}" >&2
+  rm -f "${fetched}"
+  echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
+  exit 1
+fi
+rm -f "${fetched}"
+
+gh pr edit "${number}" --repo "${repo}" --body-file "${file}" || exit 1
+cp "${file}" "${remote}"
+echo "pr-body: updated #${number} (${title})"
