@@ -27,7 +27,6 @@
 #   cd ~/Function-Health-Terraform-Modules && fh-sync Function-Health-Terraform-Modules
 
 # Colors
-red='\033[0;31m'
 green='\033[0;32m'
 reset='\033[0m'
 
@@ -57,16 +56,16 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "fh-sync: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
       if [ -z "${org}" ]; then
         org="$1"
       else
-        echo "Too many arguments: $1" >&2
-        usage
+        echo "fh-sync: extra argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       shift
@@ -75,8 +74,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${org}" ]; then
-  echo -e "${red}ERROR: Must specify an organization.${reset}" >&2
-  usage
+  echo "fh-sync: must specify an organization" >&2
+  usage >&2
   exit 1
 fi
 
@@ -90,22 +89,20 @@ for v in "${valid_orgs[@]}"; do
 done
 
 if [ "${valid}" = false ]; then
-  echo -e "${red}ERROR: Invalid organization '${org}'.${reset}" >&2
-  echo -e "${red}Valid organizations: ${valid_orgs[*]}${reset}" >&2
+  echo "fh-sync: invalid organization '${org}' (valid: ${valid_orgs[*]})" >&2
   exit 1
 fi
 
 # Check FH_GITHUB_TOKEN.
 if [ -z "${FH_GITHUB_TOKEN}" ]; then
-  echo -e "${red}ERROR: FH_GITHUB_TOKEN is not set.${reset}" >&2
+  echo "fh-sync: FH_GITHUB_TOKEN is not set" >&2
   exit 1
 fi
 
 # Check current directory matches ~/<org>.
 expected="${HOME}/${org}"
 if [ "$(pwd)" != "${expected}" ]; then
-  echo -e "${red}ERROR: Current directory must be ${expected}.${reset}" >&2
-  echo -e "${red}Run: cd ${expected}${reset}" >&2
+  echo "fh-sync: current directory must be ${expected}" >&2
   exit 1
 fi
 

@@ -19,7 +19,6 @@
 #   git-worktree-init ~/src/example-service
 
 # Colors
-red='\033[0;31m'
 green='\033[0;32m'
 reset='\033[0m'
 
@@ -45,8 +44,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-worktree-init: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -58,8 +57,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${repo}" ]; then
-  echo -e "${red}ERROR: Specify a repository to convert.${reset}" >&2
-  usage
+  echo "git-worktree-init: specify a repository to convert" >&2
+  usage >&2
   exit 1
 fi
 
@@ -67,15 +66,15 @@ fi
 repo="${repo%/}"
 
 if [ ! -d "${repo}" ]; then
-  echo -e "${red}ERROR: ${repo} does not exist.${reset}" >&2
+  echo "git-worktree-init: ${repo} does not exist" >&2
   exit 1
 fi
 
 if [ ! -d "${repo}/.git" ]; then
   if [ "$(git -C "${repo}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
-    echo -e "${red}ERROR: ${repo} is already a bare repository.${reset}" >&2
+    echo "git-worktree-init: ${repo} is already a bare repository" >&2
   else
-    echo -e "${red}ERROR: ${repo} is not a Git repository.${reset}" >&2
+    echo "git-worktree-init: ${repo} is not a Git repository" >&2
   fi
   exit 1
 fi
@@ -87,21 +86,21 @@ repo_name=$(basename "${repo_abs}")
 
 # Check for uncommitted changes.
 if [ -n "$(git status --porcelain)" ]; then
-  echo -e "${red}ERROR: Uncommitted changes. Commit or stash first.${reset}" >&2
+  echo "git-worktree-init: uncommitted changes; commit or stash first" >&2
   exit 1
 fi
 
 # Check for unpushed commits.
 unpushed=$(git log --branches --not --remotes --oneline 2>/dev/null)
 if [ -n "${unpushed}" ]; then
-  echo -e "${red}ERROR: Unpushed commits. Push all branches first.${reset}" >&2
+  echo "git-worktree-init: unpushed commits; push all branches first" >&2
   exit 1
 fi
 
 # Get remote URL.
 remote_url=$(git remote get-url origin 2>/dev/null)
 if [ -z "${remote_url}" ]; then
-  echo -e "${red}ERROR: No 'origin' remote found.${reset}" >&2
+  echo "git-worktree-init: no 'origin' remote found" >&2
   exit 1
 fi
 
@@ -113,7 +112,7 @@ if [ -z "${default_branch}" ]; then
   elif git show-ref --verify --quiet refs/heads/main 2>/dev/null; then
     default_branch="main"
   else
-    echo -e "${red}ERROR: Cannot determine default branch.${reset}" >&2
+    echo "git-worktree-init: cannot determine default branch" >&2
     exit 1
   fi
 fi
@@ -126,7 +125,7 @@ mv "${repo_name}" "${tmp}"
 
 # Clone as a bare repository.
 if ! git clone --bare "${remote_url}" "${repo_name}"; then
-  echo -e "${red}ERROR: Bare clone failed. Restoring original.${reset}" >&2
+  echo "git-worktree-init: bare clone failed; restoring the original" >&2
   rm -rf "${repo_name}"
   mv "${tmp}" "${repo_name}"
   exit 1

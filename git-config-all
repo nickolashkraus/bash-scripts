@@ -59,8 +59,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-config-all: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -71,8 +71,8 @@ while [[ $# -gt 0 ]]; do
       elif [ -z "${host}" ]; then
         host="$1"
       else
-        echo "Too many arguments: $1" >&2
-        usage
+        echo "git-config-all: extra argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       shift
@@ -81,25 +81,25 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${user_name}" ]; then
-  echo -e "${red}ERROR: Must specify a user name.${reset}" >&2
-  usage
+  echo "git-config-all: must specify a user name" >&2
+  usage >&2
   exit 1
 fi
 
 if [ -z "${user_email}" ]; then
-  echo -e "${red}ERROR: Must specify a user email.${reset}" >&2
-  usage
+  echo "git-config-all: must specify a user email" >&2
+  usage >&2
   exit 1
 fi
 
 if [ -z "${host}" ]; then
-  echo -e "${red}ERROR: Must specify a remote host.${reset}" >&2
-  usage
+  echo "git-config-all: must specify a remote host" >&2
+  usage >&2
   exit 1
 fi
 
 if ! [ -x "$(command -v gsed)" ]; then
-  echo -e "${red}ERROR: gsed is not installed.${reset}" >&2
+  echo "git-config-all: gsed is not installed" >&2
   exit 1
 fi
 

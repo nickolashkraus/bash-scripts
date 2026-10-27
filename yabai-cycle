@@ -17,10 +17,6 @@
 # EXAMPLES
 #   None
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 # Print usage information.
 function usage() {
   echo "usage: yabai-cycle [OPTIONS] APP"
@@ -41,8 +37,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "yabai-cycle: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -54,8 +50,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${app}" ]; then
-  echo -e "${red}ERROR: Must specify an application.${reset}" >&2
-  usage
+  echo "yabai-cycle: must specify an application" >&2
+  usage >&2
   exit 1
 fi
 

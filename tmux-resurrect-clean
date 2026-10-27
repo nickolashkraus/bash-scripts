@@ -29,7 +29,6 @@
 #   tmux-resurrect-clean --keep 5 --dry-run
 
 # Colors
-red='\033[0;31m'
 yellow='\033[0;33m'
 reset='\033[0m'
 
@@ -71,7 +70,7 @@ while [[ $# -gt 0 ]]; do
       mode="keep"
       keep_n="$2"
       if ! [[ "${keep_n}" =~ ^[0-9]+$ ]]; then
-        echo -e "${red}ERROR: --keep requires a non-negative integer.${reset}" >&2
+        echo "tmux-resurrect-clean: --keep requires a non-negative integer" >&2
         exit 1
       fi
       shift 2
@@ -81,26 +80,26 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "tmux-resurrect-clean: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "tmux-resurrect-clean: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
 done
 
 if [ -z "${mode}" ]; then
-  echo -e "${red}ERROR: must specify one of --all, --all-but-last, or --keep N.${reset}" >&2
-  usage
+  echo "tmux-resurrect-clean: must specify one of --all, --all-but-last, or --keep N" >&2
+  usage >&2
   exit 1
 fi
 
 if [ ! -d "${resurrect_dir}" ]; then
-  echo -e "${red}ERROR: ${resurrect_dir} does not exist.${reset}" >&2
+  echo "tmux-resurrect-clean: ${resurrect_dir} does not exist" >&2
   exit 1
 fi
 
@@ -152,7 +151,7 @@ function clean_all_but_last() {
   local last_target
   last_target="$(resolve_last)"
   if [ -z "${last_target}" ]; then
-    echo -e "${red}ERROR: \`last\` symlink is missing or dangling; nothing to preserve.${reset}" >&2
+    echo "tmux-resurrect-clean: \`last\` symlink is missing or dangling; nothing to preserve" >&2
     exit 1
   fi
   shopt -s nullglob

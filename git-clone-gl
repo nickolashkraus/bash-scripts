@@ -60,8 +60,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-clone-gl: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -70,8 +70,8 @@ while [[ $# -gt 0 ]]; do
       elif [ -z "${access_token}" ]; then
         access_token="$1"
       else
-        echo "Too many arguments: $1" >&2
-        usage
+        echo "git-clone-gl: extra argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       shift
@@ -80,8 +80,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${group}" ]; then
-  echo -e "${red}ERROR: Must specify a group.${reset}" >&2
-  usage
+  echo "git-clone-gl: must specify a group" >&2
+  usage >&2
   exit 1
 fi
 
@@ -91,8 +91,8 @@ if [ -z "${access_token}" ]; then
 fi
 
 if [ -z "${access_token}" ]; then
-  echo -e "${red}ERROR: Must specify a GitLab access token.${reset}" >&2
-  usage
+  echo "git-clone-gl: must specify a GitLab access token" >&2
+  usage >&2
   exit 1
 fi
 
@@ -102,7 +102,7 @@ eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
 # Test SSH connection to GitHub.
 ssh_output=$(ssh -T git@github.com 2>&1)
 if ! echo "$ssh_output" | grep -q "successfully authenticated"; then
-  echo -e "${red}ERROR: GitHub SSH authentication failed.${reset}" >&2
+  echo "git-clone-gl: GitHub SSH authentication failed" >&2
   echo "$ssh_output" >&2
   exit 1
 fi

@@ -42,8 +42,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-remote-v: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -58,7 +58,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    echo "git-remote-v: ${dir} does not exist" >&2
     exit 1
   fi
 fi

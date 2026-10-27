@@ -15,10 +15,6 @@
 # EXAMPLES
 #   generate-ssh-keys -f id_rsa
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 # Print usage information.
 function usage() {
   echo "usage: generate-ssh-keys [OPTIONS]"
@@ -43,27 +39,27 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "generate-ssh-keys: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "generate-ssh-keys: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
 done
 
 if [ -z "${output_keyfile}" ]; then
-  echo -e "${red}ERROR: Must specify an output keyfile with -f option.${reset}" >&2
-  usage
+  echo "generate-ssh-keys: must specify an output keyfile with -f option" >&2
+  usage >&2
   exit 1
 fi
 
 # Exit if a key pair of the name 'output_keyfile' already exists.
 if [ -e "${output_keyfile}" ]; then
-  echo -e "${red}ERROR: File already exists.${reset}" >&2
+  echo "generate-ssh-keys: file already exists" >&2
   exit 1
 fi
 

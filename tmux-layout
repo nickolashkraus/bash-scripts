@@ -20,10 +20,6 @@
 #   tmux-layout v
 #   tmux-layout h
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 LAYOUT_V='d9e5,264x205,0,0[264x30,0,0,2,264x122,0,31,3,264x51,0,154,4]'
 LAYOUT_H='7013,474x113,0,0{237x113,0,0,0,236x113,238,0,8}'
 
@@ -49,16 +45,16 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "tmux-layout: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
       if [[ -z "${LAYOUT}" ]]; then
         LAYOUT="$1"
       else
-        echo "Unknown argument: $1" >&2
-        usage
+        echo "tmux-layout: unknown argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       shift
@@ -67,24 +63,24 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${LAYOUT}" ]]; then
-  echo -e "${red}ERROR: layout argument is required.${reset}" >&2
-  usage
+  echo "tmux-layout: layout argument is required" >&2
+  usage >&2
   exit 1
 fi
 
 if [[ "${LAYOUT}" != "v" && "${LAYOUT}" != "h" ]]; then
-  echo -e "${red}ERROR: layout must be \"v\" or \"h\".${reset}" >&2
-  usage
+  echo "tmux-layout: layout must be \"v\" or \"h\"" >&2
+  usage >&2
   exit 1
 fi
 
 if ! [ -x "$(command -v tmux)" ]; then
-  echo -e "${red}ERROR: tmux is not installed.${reset}" >&2
+  echo "tmux-layout: tmux is not installed" >&2
   exit 1
 fi
 
 if [[ -z "${TMUX}" ]]; then
-  echo -e "${red}ERROR: not inside a tmux session.${reset}" >&2
+  echo "tmux-layout: not inside a tmux session" >&2
   exit 1
 fi
 

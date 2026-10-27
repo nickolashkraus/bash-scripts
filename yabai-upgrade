@@ -34,13 +34,13 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "yabai-upgrade: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "yabai-upgrade: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac

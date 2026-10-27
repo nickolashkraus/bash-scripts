@@ -25,7 +25,6 @@
 
 set -euo pipefail
 
-red='\033[0;31m'
 green='\033[0;32m'
 yellow='\033[0;33m'
 reset='\033[0m'
@@ -39,7 +38,7 @@ for arg in "$@"; do
       exit 0
       ;;
     *)
-      printf "${red}Unknown argument: %s${reset}\n" "$arg" >&2
+      printf "soft-restart: unknown argument '%s'\n" "$arg" >&2
       exit 2
       ;;
   esac

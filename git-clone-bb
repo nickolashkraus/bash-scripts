@@ -45,8 +45,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-clone-bb: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -55,8 +55,8 @@ while [[ $# -gt 0 ]]; do
       elif [ -z "${credentials}" ]; then
         credentials="$1"
       else
-        echo "Too many arguments: $1" >&2
-        usage
+        echo "git-clone-bb: extra argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       shift
@@ -65,14 +65,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${project_key}" ]; then
-  echo -e "${red}ERROR: Must specify a project key.${reset}" >&2
-  usage
+  echo "git-clone-bb: must specify a project key" >&2
+  usage >&2
   exit 1
 fi
 
 if [ -z "${credentials}" ]; then
-  echo -e "${red}ERROR: Must provide basic auth credentials.${reset}" >&2
-  usage
+  echo "git-clone-bb: must provide basic auth credentials" >&2
+  usage >&2
   exit 1
 fi
 

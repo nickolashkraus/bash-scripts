@@ -76,13 +76,13 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-push: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "git-push: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
@@ -92,7 +92,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    echo "git-push: ${dir} does not exist" >&2
     exit 1
   fi
 fi

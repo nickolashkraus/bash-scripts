@@ -17,7 +17,7 @@ PROJECTS="${HOME}/.claude/projects"
 WIP="${HOME}/nickolashkraus/agent-os/tasks/wip.md"
 
 if [[ ! -f "${HISTORY}" ]]; then
-  echo "ERROR: ${HISTORY} not found." >&2
+  echo "claude-wip: ${HISTORY} not found" >&2
   exit 1
 fi
 
@@ -37,7 +37,7 @@ encoded_project=$(echo "${project}" | tr '/' '-')
 conversation="${PROJECTS}/${encoded_project}/${session_id}.jsonl"
 
 if [[ ! -f "${conversation}" ]]; then
-  echo "ERROR: Conversation file not found: ${conversation}" >&2
+  echo "claude-wip: conversation file not found: ${conversation}" >&2
   exit 1
 fi
 

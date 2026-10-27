@@ -15,10 +15,6 @@
 # EXAMPLES
 #   None
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 # Print usage information.
 function usage() {
   echo "usage: json2yaml [OPTIONS] FILE"
@@ -41,8 +37,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "json2yaml: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -54,13 +50,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${file}" ]; then
-  echo -e "${red}ERROR: Must specify a file.${reset}" >&2
-  usage
+  echo "json2yaml: must specify a file" >&2
+  usage >&2
   exit 1
 fi
 
 if [ ! -e "${file}" ]; then
-  echo -e "${red}ERROR: ${file} does not exist.${reset}" >&2
+  echo "json2yaml: ${file} does not exist" >&2
   exit 1
 fi
 

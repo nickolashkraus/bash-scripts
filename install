@@ -44,13 +44,13 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "install: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "install: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
@@ -60,7 +60,7 @@ failures=0
 
 # Without $HOME/bin every link below fails, so this one is fatal.
 if ! mkdir -p "${HOME}"/bin; then
-  echo "ERROR: could not create ${HOME}/bin" >&2
+  echo "install: could not create ${HOME}/bin" >&2
   exit 1
 fi
 
@@ -73,7 +73,7 @@ for f in "$(pwd)"/*; do
   [ "$(basename "${f}")" = "install" ] && continue
   # The loop body runs in this shell, so the counter survives the iteration.
   if ! ln -sfn "${f}" "${HOME}/bin/$(basename "${f}")"; then
-    echo "ERROR: could not link $(basename "${f}")" >&2
+    echo "install: could not link $(basename "${f}")" >&2
     failures=$((failures + 1))
   fi
 done

@@ -50,7 +50,7 @@
 set -uo pipefail
 
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
-  echo "ERROR: worktree-links needs bash 4 or later for associative arrays." >&2
+  echo "worktree-links: needs bash 4 or later for associative arrays" >&2
   exit 1
 fi
 
@@ -94,15 +94,15 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "ERROR: unknown option: $1" >&2
-      usage
+      echo "worktree-links: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
 done
 
 if ! [ -x "$(command -v git)" ]; then
-  echo "ERROR: git is not installed." >&2
+  echo "worktree-links: git is not installed" >&2
   exit 1
 fi
 

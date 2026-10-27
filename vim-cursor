@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "ERROR: unknown option: $1" >&2
+      echo "vim-cursor: unknown option '$1'" >&2
       usage >&2
       exit 1
       ;;
@@ -75,14 +75,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if ! command -v timeout >/dev/null; then
-  echo "ERROR: timeout is not installed (brew install coreutils)." >&2
+  echo "vim-cursor: timeout is not installed (brew install coreutils)" >&2
   exit 1
 fi
 
 expr="$(cursor_expr | tr -d '\n')"
 servers="$(vim --serverlist)"
 if [[ -z "${servers}" ]]; then
-  echo "No Vim servers found. Does .vimrc call remote_startserver()?" >&2
+  echo "vim-cursor: no Vim servers found; does .vimrc call remote_startserver()?" >&2
   exit 1
 fi
 
@@ -109,6 +109,6 @@ while IFS= read -r server; do
 done <<<"${servers}"
 
 if [[ "${found}" -eq 0 ]]; then
-  echo "No Vim matched${dir:+ under ${dir}}" >&2
+  echo "vim-cursor: no Vim matched${dir:+ under ${dir}}" >&2
   exit 1
 fi

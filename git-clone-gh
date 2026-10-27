@@ -52,7 +52,6 @@ exclude_patterns=()
 # Colors
 red='\033[0;31m'
 green='\033[0;32m'
-yellow='\033[0;33m'
 reset='\033[0m'
 
 # Print usage information.
@@ -107,8 +106,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-clone-gh: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -121,8 +120,8 @@ done
 
 # Error if 'user' and 'org' are either both set or not set.
 if { [ -n "${user}" ] && [ -n "${org}" ]; } || { [ -z "${user}" ] && [ -z "${org}" ]; }; then
-  echo -e "${red}ERROR: Specify either a user or organization.${reset}" >&2
-  usage
+  echo "git-clone-gh: specify either a user or organization" >&2
+  usage >&2
   exit 1
 fi
 
@@ -132,8 +131,8 @@ if [ -z "${access_token}" ]; then
 fi
 
 if [ -z "${access_token}" ]; then
-  echo -e "${red}ERROR: Specify a GitHub access token.${reset}" >&2
-  usage
+  echo "git-clone-gh: specify a GitHub access token" >&2
+  usage >&2
   exit 1
 fi
 
@@ -143,7 +142,7 @@ eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
 # Test SSH connection to GitHub.
 ssh_output=$(ssh -T git@github.com 2>&1)
 if ! echo "$ssh_output" | grep -q "successfully authenticated"; then
-  echo -e "${red}ERROR: GitHub SSH authentication failed.${reset}" >&2
+  echo "git-clone-gh: GitHub SSH authentication failed" >&2
   echo "$ssh_output" >&2
   exit 1
 fi
@@ -162,12 +161,12 @@ if [ -n "${user}" ]; then
     --header "Authorization: Token ${access_token}" \
     "https://api.github.com/user" | jq -r '.login // empty')
   if [ -z "${authenticated_user}" ]; then
-    echo -e "${red}ERROR: Could not authenticate with the provided token.${reset}" >&2
+    echo "git-clone-gh: could not authenticate with the provided token" >&2
     exit 1
   fi
   if [ "${authenticated_user}" != "${user}" ]; then
-    echo -e "${red}ERROR: Token belongs to '${authenticated_user}', not '${user}'.${reset}" >&2
-    echo -e "${yellow}Private repositories are only accessible for the token's own account.${reset}" >&2
+    echo "git-clone-gh: token belongs to '${authenticated_user}', not '${user}'" >&2
+    echo "git-clone-gh: private repositories are only accessible for the token's own account" >&2
     exit 1
   fi
 elif [ -n "${org}" ]; then
@@ -179,10 +178,10 @@ elif [ -n "${org}" ]; then
     --header "Authorization: Token ${access_token}" \
     "https://api.github.com/orgs/${org}")
   if [ "${status}" -eq 404 ]; then
-    echo -e "${red}ERROR: GitHub organization does not exist.${reset}" >&2
+    echo "git-clone-gh: GitHub organization does not exist" >&2
     exit 1
   elif [ "${status}" -ne 200 ]; then
-    echo -e "${red}ERROR: GitHub organization lookup failed (HTTP ${status}).${reset}" >&2
+    echo "git-clone-gh: GitHub organization lookup failed (HTTP ${status})" >&2
     exit 1
   fi
   # Check if resource is protected by organization SAML enforcement.
@@ -190,8 +189,8 @@ elif [ -n "${org}" ]; then
     --header "Authorization: Token ${access_token}" \
     "https://api.github.com/${resource}")
   if [ "${status}" -eq 403 ]; then
-    echo -e "${red}ERROR: Resource protected by organization SAML enforcement.${reset}" >&2
-    echo -e "${red}You must grant your personal access token access to this organization.${reset}" >&2
+    echo "git-clone-gh: resource protected by organization SAML enforcement" >&2
+    echo "git-clone-gh: grant your personal access token access to this organization" >&2
     exit 1
   fi
 else
@@ -217,7 +216,7 @@ while true; do
   # If the response is not an array, GitHub returned an error object.
   if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
     msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
-    echo -e "${red}ERROR: GitHub API error: ${msg}${reset}" >&2
+    echo "git-clone-gh: GitHub API error: ${msg}" >&2
     exit 1
   fi
 
@@ -247,9 +246,8 @@ for ssh_url in "${filtered[@]}"; do
   elif echo "${output}" | grep -qi "not found"; then
     echo -e "${red}Please make sure you have the correct access rights and the repository exists.${reset}"
   elif echo "${output}" | grep -qi "SAML"; then
-    echo -e "${red}ERROR: The '${org}' organization has enabled or enforced SAML SSO.${reset}" >&2
-    echo -e "${yellow}To access this repository, you must use the HTTPS remote with a personal access token${reset}" >&2
-    echo -e "${yellow}or SSH with an SSH key and passphrase that has been authorized for this organization.${reset}" >&2
+    echo "git-clone-gh: the '${org}' organization has enabled or enforced SAML SSO" >&2
+    echo "git-clone-gh: use the HTTPS remote with a personal access token, or an SSH key authorized for this organization" >&2
     exit 1
   else
     cloned+=("$(basename "${ssh_url}" .git)")

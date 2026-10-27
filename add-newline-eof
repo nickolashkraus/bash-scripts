@@ -16,10 +16,6 @@
 # EXAMPLES
 #   None
 
-# Colors
-red='\033[0;31m'
-reset='\033[0m'
-
 # Print usage information.
 function usage() {
   echo "usage: add-newline-eof [OPTIONS] [DIR]"
@@ -42,8 +38,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "add-newline-eof: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
@@ -58,13 +54,13 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    echo "add-newline-eof: ${dir} does not exist" >&2
     exit 1
   fi
 fi
 
 if ! [ -x "$(command -v gsed)" ]; then
-  echo -e "${red}ERROR: gsed is not installed.${reset}" >&2
+  echo "add-newline-eof: gsed is not installed" >&2
   exit 1
 fi
 

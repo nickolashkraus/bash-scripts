@@ -57,7 +57,7 @@ function usage() {
 # Prompt for a single y/n keystroke. Succeeds only on y or Y.
 function confirm() {
   local reply
-  read -r -n 1 -p "$1 [y/N] " reply
+  read -r -n 1 -p "pr-threads: $1 [y/N] " reply
   echo
   [[ ${reply} == [yY] ]]
 }
@@ -76,7 +76,7 @@ while [[ $# -gt 0 ]]; do
     --resolve | --unresolve)
       mode=${1#--}
       if [[ -z $2 ]]; then
-        echo "pr-threads: ${mode} needs numbers, 'replied', or 'all'" >&2
+        echo "pr-threads: --${mode} needs numbers, 'replied', or 'all'" >&2
         exit 1
       fi
       selector=$2
@@ -87,14 +87,14 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "pr-threads: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
       if [[ ${#target[@]} -gt 0 ]]; then
-        echo "Unknown argument: $1" >&2
-        usage
+        echo "pr-threads: unknown argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       target=("$1")
@@ -104,7 +104,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
-  echo "pr-threads: not a git repository" >&2
+  echo "pr-threads: not a Git repository" >&2
   exit 1
 }
 
@@ -210,11 +210,11 @@ while IFS=$'\t' read -r tid resolved _outdated tpath tline _tauthor tparts _ttit
 done <"${cache}"
 
 if [[ ${#ids[@]} -eq 0 ]]; then
-  echo "pr-threads: nothing matched '${selector}'."
+  echo "pr-threads: nothing matched '${selector}'"
   exit 0
 fi
 
-echo "About to ${mode} ${#ids[@]} thread(s) on #${number}:"
+echo "pr-threads: about to ${mode} ${#ids[@]} thread(s) on #${number}:"
 for l in "${labels[@]}"; do
   echo "  ${l}"
 done
@@ -223,7 +223,7 @@ if [[ -z ${PR_THREADS_ASSUME_YES} ]]; then
     echo "pr-threads: no terminal to confirm on; set PR_THREADS_ASSUME_YES=1" >&2
     exit 1
   fi
-  confirm "Continue?" || exit 1
+  confirm "continue?" || exit 1
 fi
 
 ok=0
