@@ -60,7 +60,7 @@ function usage() {
 # Prompt for a single y/n keystroke. Succeeds only on y or Y.
 function confirm() {
   local reply
-  read -r -n 1 -p "$1 [y/N] " reply
+  read -r -n 1 -p "pr-body: $1 [y/N] " reply
   echo
   [[ ${reply} == [yY] ]]
 }
@@ -270,14 +270,14 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "pr-body: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
       if [[ ${#target[@]} -gt 0 ]]; then
-        echo "Unknown argument: $1" >&2
-        usage
+        echo "pr-body: unknown argument '$1'" >&2
+        usage >&2
         exit 1
       fi
       target=("$1")
@@ -287,7 +287,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
-  echo "pr-body: not a git repository" >&2
+  echo "pr-body: not a Git repository" >&2
   exit 1
 }
 
@@ -331,16 +331,26 @@ if [[ ${mode} == show ]]; then
 fi
 
 # The buffer predates a change made on GitHub, so pushing it would discard
-# that change. Show what would be lost before going further.
+# that change. A buffer with no local edits simply takes GitHub's version;
+# otherwise show what would be lost and ask which version to keep.
 if [[ -f ${file} && -f ${remote} ]] && ! same "${remote}" "${fetched}"; then
-  echo "pr-body: #${number} changed on GitHub since this buffer was fetched." >&2
-  diff -u --label "what you fetched" --label "GitHub now" "${remote}" "${fetched}" >&2
-  echo "" >&2
-  echo "Pushing the buffer discards that. To start from GitHub's version:" >&2
-  echo "  rm ${file}" >&2
-  if ! confirm "Keep the local buffer anyway?"; then
-    rm -f "${fetched}"
-    exit 1
+  echo "pr-body: #${number} changed on GitHub since this buffer was fetched" >&2
+  if same "${file}" "${remote}"; then
+    echo "pr-body: the buffer had no local edits, so it now matches GitHub" >&2
+    cp "${fetched}" "${file}"
+  else
+    diff -u --label "what you fetched" --label "GitHub now" "${remote}" "${fetched}" >&2
+    echo "" >&2
+    if [[ ! -t 0 ]]; then
+      echo "pr-body: no terminal to choose on; the buffer is kept at ${file}" >&2
+      rm -f "${fetched}"
+      exit 1
+    fi
+    if confirm "replace the local buffer with GitHub's version?"; then
+      cp "${fetched}" "${file}"
+    else
+      echo "pr-body: keeping the local buffer; pushing it discards the change above" >&2
+    fi
   fi
 fi
 
@@ -358,12 +368,15 @@ fi
 ${EDITOR:-vim} "${file}" || exit 1
 
 if same "${file}" "${remote}"; then
-  echo "pr-body: #${number} unchanged, nothing to push."
+  echo "pr-body: #${number} unchanged, nothing to push"
   exit 0
 fi
 
 if [[ -n ${run_check} ]]; then
-  echo "pr-body: checking spelling and facts (${check_model} call)..."
+  # An alias (sonnet) is a model name; a full model ID is a literal.
+  model_name=${check_model}
+  [[ ${model_name} =~ ^[a-z]+$ ]] && model_name=${model_name^}
+  echo "pr-body: checking spelling and facts (${model_name} call)..."
   check "${file}" "${number}" "${repo}" "${title}" "${check_model}"
   case $? in
     0) ;;
@@ -396,7 +409,7 @@ if [[ -z ${PR_BODY_ASSUME_YES} ]]; then
     echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
     exit 1
   fi
-  if ! confirm "Push this description to #${number}?"; then
+  if ! confirm "push this description to #${number}?"; then
     echo "pr-body: #${number} not pushed; the buffer is kept at ${file}"
     exit 1
   fi
@@ -406,7 +419,7 @@ fi
 # open, and pushing now would discard that edit.
 fetch_body "${fetched}" || exit 1
 if ! same "${remote}" "${fetched}"; then
-  echo "pr-body: #${number} changed on GitHub while the buffer was open." >&2
+  echo "pr-body: #${number} changed on GitHub while the buffer was open" >&2
   diff -u --label "what you fetched" --label "GitHub now" "${remote}" "${fetched}" >&2
   rm -f "${fetched}"
   echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
