@@ -173,8 +173,16 @@ if [ -n "${user}" ]; then
 elif [ -n "${org}" ]; then
   resource="orgs/${org}/repos"
   list_params="type=all&sort=full_name"
-  if ! curl --fail --silent "https://api.github.com/orgs/${org}" >/dev/null; then
+  # Authenticate the lookup. An anonymous request shares a 60/hour limit per
+  # IP, so back-to-back runs would report a 403 as a missing organization.
+  status=$(curl -L --silent --output /dev/null --write-out "%{http_code}" -X GET \
+    --header "Authorization: Token ${access_token}" \
+    "https://api.github.com/orgs/${org}")
+  if [ "${status}" -eq 404 ]; then
     echo -e "${red}ERROR: GitHub organization does not exist.${reset}" >&2
+    exit 1
+  elif [ "${status}" -ne 200 ]; then
+    echo -e "${red}ERROR: GitHub organization lookup failed (HTTP ${status}).${reset}" >&2
     exit 1
   fi
   # Check if resource is protected by organization SAML enforcement.
