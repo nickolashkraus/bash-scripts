@@ -33,6 +33,7 @@ updated=0
 no_tracking=0
 not_git=0
 skipped=0
+upstream_gone=0
 errors=0
 
 # Print usage information.
@@ -90,6 +91,15 @@ function do_pull() {
     git branch | grep "\*"
     echo -e "${reset}"
     ((no_tracking++))
+  # A branch whose upstream was deleted on the remote (a merged pull request
+  # whose head branch GitHub removed) is finished work, not a failure. It is
+  # reported in its own category so a daily run stays green while the worktree
+  # waits to be pruned.
+  elif [[ "${output}" =~ no[[:space:]]such[[:space:]]ref[[:space:]]was[[:space:]]fetched ]]; then
+    echo -e "${yellow}Upstream branch no longer exists on the remote."
+    git branch | grep "\*"
+    echo -e "${reset}"
+    ((upstream_gone++))
   # Trust the exit status over the output text. An aborted merge still prints
   # "Updating <sha>..<sha>" as its first line, so the pattern below matched it
   # and counted the repo as updated while it sat behind. Anything git calls a
@@ -169,13 +179,13 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     -*)
-      echo "Unknown option: $1" >&2
-      usage
+      echo "git-pull: unknown option '$1'" >&2
+      usage >&2
       exit 1
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      usage
+      echo "git-pull: unknown argument '$1'" >&2
+      usage >&2
       exit 1
       ;;
   esac
@@ -185,7 +195,7 @@ if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
   if [ ! -e "${dir}" ]; then
-    echo -e "${red}ERROR: ${dir} does not exist.${reset}" >&2
+    echo "git-pull: ${dir} does not exist" >&2
     exit 1
   fi
 fi
@@ -237,7 +247,7 @@ for d in "${dir}"/*; do
   popd >/dev/null || exit
 done
 
-total=$((up_to_date + updated + no_tracking + not_git + skipped + errors))
+total=$((up_to_date + updated + no_tracking + upstream_gone + not_git + skipped + errors))
 echo ""
 echo "Stats:"
 echo "  Total: ${total}"
@@ -245,6 +255,7 @@ echo "  Up to date: ${up_to_date}"
 echo "  Updated: ${updated}"
 echo "  Errors: ${errors}"
 echo "  No tracking: ${no_tracking}"
+echo "  Upstream gone: ${upstream_gone}"
 echo "  Not a repository: ${not_git}"
 echo "  Skipped: ${skipped}"
 
