@@ -3,7 +3,13 @@
 # DESCRIPTION
 #   Apply a predefined tmux layout to the current window.
 #   Creates panes as needed (three for "v", two for "h"), then applies the
-#   layout.
+#   layout that matches the pane count:
+#
+#   v, three panes    Stacked top, middle and bottom
+#   v, four panes     Stacked, with the middle split into left and right
+#   h, two panes      Side by side
+#   h, three panes    Toggles between three equal columns and a left pane
+#                     beside a right pane split into top and bottom
 #
 #   NOTE: This script is specific to my local development environment.
 #
@@ -20,8 +26,11 @@
 #   tmux-layout v
 #   tmux-layout h
 
-LAYOUT_V='d9e5,264x205,0,0[264x30,0,0,2,264x122,0,31,3,264x51,0,154,4]'
-LAYOUT_H='7013,474x113,0,0{237x113,0,0,0,236x113,238,0,8}'
+LAYOUT_V3='d9e5,264x205,0,0[264x30,0,0,2,264x122,0,31,3,264x51,0,154,4]'
+LAYOUT_V4='404d,264x205,0,0[264x29,0,0,6,264x126,0,30{131x126,0,30,7,132x126,132,30,12},264x48,0,157,9]'
+LAYOUT_H2='7013,474x113,0,0{237x113,0,0,0,236x113,238,0,8}'
+LAYOUT_H3_COLUMNS='0300,474x113,0,0{158x113,0,0,0,157x113,159,0,1,157x113,317,0,2}'
+LAYOUT_H3_SPLIT='a9ca,474x113,0,0{237x113,0,0,0,236x113,238,0[236x56,238,0,1,236x56,238,57,2]}'
 
 # Print usage information.
 function usage() {
@@ -87,20 +96,44 @@ fi
 PANE_COUNT=$(tmux list-panes | wc -l | tr -d ' ')
 
 if [[ "${LAYOUT}" == "v" ]]; then
-  PANES_NEEDED=3
+  MIN_PANES=3
+  MAX_PANES=4
 else
-  PANES_NEEDED=2
+  MIN_PANES=2
+  MAX_PANES=3
 fi
 
-while [[ "${PANE_COUNT}" -lt "${PANES_NEEDED}" ]]; do
+if [[ "${PANE_COUNT}" -gt "${MAX_PANES}" ]]; then
+  echo "tmux-layout: layout \"${LAYOUT}\" supports at most ${MAX_PANES} panes, window has ${PANE_COUNT}" >&2
+  exit 1
+fi
+
+while [[ "${PANE_COUNT}" -lt "${MIN_PANES}" ]]; do
   tmux split-window -v
   PANE_COUNT=$((PANE_COUNT + 1))
 done
 
-if [[ "${LAYOUT}" == "v" ]]; then
-  tmux select-layout "${LAYOUT_V}"
-  tmux select-pane -t 1
-else
-  tmux select-layout "${LAYOUT_H}"
-  tmux select-pane -t 0
-fi
+case "${LAYOUT}${PANE_COUNT}" in
+  v3)
+    tmux select-layout "${LAYOUT_V3}"
+    tmux select-pane -t 1
+    ;;
+  v4)
+    tmux select-layout "${LAYOUT_V4}"
+    tmux select-pane -t 1
+    ;;
+  h2)
+    tmux select-layout "${LAYOUT_H2}"
+    tmux select-pane -t 0
+    ;;
+  h3)
+    # Panes that all share a top edge are the three columns, so toggle to the
+    # split. Any other arrangement goes to the columns.
+    if [[ "$(tmux list-panes -F '#{pane_top}' | sort -u | wc -l | tr -d ' ')" -eq 1 ]]; then
+      tmux select-layout "${LAYOUT_H3_SPLIT}"
+    else
+      tmux select-layout "${LAYOUT_H3_COLUMNS}"
+    fi
+    tmux select-pane -t 0
+    ;;
+esac
