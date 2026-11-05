@@ -19,9 +19,9 @@
 #   since only the author knows whether the description or the code is wrong.
 #
 #   Environment:
-#     PR_BODY_DEEP_LINT=1       Also run rule-check.py (a Sonnet call)
+#     PR_BODY_DEEP_LINT=1       Also run rule-check.py (an Opus call)
 #     PR_BODY_ASSUME_YES=1      Push without the confirmation prompt
-#     PR_BODY_CHECK_MODEL=M     Model for `--check` (defaults to sonnet)
+#     PR_BODY_CHECK_MODEL=M     Model for `--check` (defaults to opus)
 #
 # USAGE
 #   pr-body [OPTIONS] [PR]
@@ -70,7 +70,7 @@ function confirm() {
 # Editing a description on GitHub skips these entirely, so this is the only
 # path where the typography rules actually gate the text.
 #
-# Only the deterministic pass runs by default. rule-check.py costs a Sonnet
+# Only the deterministic pass runs by default. rule-check.py costs an Opus
 # call, which put ten-odd seconds of silence between saving the buffer and the
 # push prompt, and its job is catching agent slop rather than grading prose
 # written by hand.
@@ -82,7 +82,7 @@ function lint() {
   ) || return 1
   printf '%s\n' "${payload}" | python3 "${HOME}/.claude/hooks/lint-outbound.py" || return 1
   if [[ -n ${PR_BODY_DEEP_LINT} ]]; then
-    printf 'pr-body: running the deep lint (Sonnet call)... '
+    printf 'pr-body: running the deep lint (Opus call)... '
     printf '%s\n' "${payload}" | python3 "${HOME}/.claude/hooks/rule-check.py" || {
       echo
       return 1
@@ -247,7 +247,7 @@ PY
 
 mode="edit"
 run_check=""
-check_model=${PR_BODY_CHECK_MODEL:-sonnet}
+check_model=${PR_BODY_CHECK_MODEL:-opus}
 target=()
 
 # Parse command line arguments.
@@ -373,7 +373,7 @@ if same "${file}" "${remote}"; then
 fi
 
 if [[ -n ${run_check} ]]; then
-  # An alias (sonnet) is a model name; a full model ID is a literal.
+  # An alias (opus) is a model name; a full model ID is a literal.
   model_name=${check_model}
   [[ ${model_name} =~ ^[a-z]+$ ]] && model_name=${model_name^}
   echo "pr-body: checking spelling and facts (${model_name} call)..."
