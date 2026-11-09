@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Print a pull request's diff stat the way GitHub draws it: the added and
+#   deleted line counts, then five blocks split between them in proportion,
+#   with the remainder grey.
+#
+#   `--tmux` emits tmux style markup (`#[fg=green]`) instead of ANSI escapes,
+#   for a pane border or a status line. `--vim` emits `vim -c` arguments that
+#   put the stat at the right end of Vim's tabline, on the terminal background.
+#
+# USAGE
+#   pr-stat [OPTIONS] [PR]
+#
+# ARGUMENTS
+#   PR    Pull request number, URL, or branch (optional, defaults to the current
+#         worktree's pull request)
+#
+# OPTIONS
+#   --tmux        Emit tmux style markup instead of ANSI escapes
+#   --vim         Emit `vim -c` arguments that show the stat in the tabline
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   pr-stat 614
+#   tmux set-option -w @pr_stat "$(pr-stat --tmux 614)"
+#   eval "vim $(pr-stat --vim 614)"
+
+set -euo pipefail
+
+# Print usage information.
+function usage() {
+  echo "usage: pr-stat [OPTIONS] [PR]"
+  echo ""
+  echo "Arguments:"
+  echo "  PR            Pull request number, URL, or branch (defaults to the"
+  echo "                current worktree's pull request)"
+  echo ""
+  echo "Options:"
+  echo "  --tmux        Emit tmux style markup instead of ANSI escapes"
+  echo "  --vim         Emit vim -c arguments that show the stat in the tabline"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+mode="ansi"
+pr=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --tmux)
+      mode="tmux"
+      ;;
+    --vim)
+      mode="vim"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "pr-stat: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      pr="$1"
+      ;;
+  esac
+  shift
+done
+
+# Group digits in threes, without depending on the locale's printf.
+function group() {
+  local n=$1 out=""
+  while [[ ${#n} -gt 3 ]]; do
+    out=",${n: -3}${out}"
+    n=${n:0:${#n}-3}
+  done
+  printf '%s%s' "$n" "$out"
+}
+
+function blocks() {
+  local n=$1 out=""
+  while [[ $n -gt 0 ]]; do
+    out="${out}■"
+    n=$((n - 1))
+  done
+  printf '%s' "$out"
+}
+
+read -r adds dels < <(gh pr view ${pr:+"$pr"} --json additions,deletions \
+  --jq '"\(.additions) \(.deletions)"')
+
+# GitHub's split: one block per change up to five, proportional and rounded
+# down past that, grey for whatever is left.
+total=$((adds + dels))
+if [[ $total -le 5 ]]; then
+  green=$adds
+  red=$dels
+else
+  green=$((adds * 5 / total))
+  red=$((dels * 5 / total))
+fi
+grey=$((5 - green - red))
+
+if [[ $mode == "tmux" ]]; then
+  printf '#[fg=green]+%s #[fg=red]-%s #[fg=green]%s#[fg=red]%s#[fg=colour240]%s#[default]' \
+    "$(group "$adds")" "$(group "$dels")" \
+    "$(blocks "$green")" "$(blocks "$red")" "$(blocks "$grey")"
+elif [[ $mode == "vim" ]]; then
+  # Right-aligned on a tabline whose fill is the terminal background, so only
+  # the stat shows. The highlight groups are defined here rather than in
+  # `.vimrc`, since nothing else uses them.
+  tabline=$(printf '%%=%%#PrStatAdd#+%s %%#PrStatDel#-%s %%#PrStatAdd#%s%%#PrStatDel#%s%%#PrStatRest#%s%%* ' \
+    "$(group "$adds")" "$(group "$dels")" \
+    "$(blocks "$green")" "$(blocks "$red")" "$(blocks "$grey")")
+  printf -- "-c 'hi TabLineFill ctermbg=NONE guibg=NONE' "
+  printf -- "-c 'hi PrStatAdd ctermfg=2 ctermbg=NONE guifg=#b8bb26 guibg=NONE' "
+  printf -- "-c 'hi PrStatDel ctermfg=1 ctermbg=NONE guifg=#fb4934 guibg=NONE' "
+  printf -- "-c 'hi PrStatRest ctermfg=240 ctermbg=NONE guifg=#504945 guibg=NONE' "
+  printf -- "-c 'set showtabline=2' -c 'let &tabline = \"%s\"'\n" "$tabline"
+else
+  printf '\033[32m+%s\033[0m \033[31m-%s\033[0m \033[32m%s\033[31m%s\033[90m%s\033[0m\n' \
+    "$(group "$adds")" "$(group "$dels")" \
+    "$(blocks "$green")" "$(blocks "$red")" "$(blocks "$grey")"
+fi
