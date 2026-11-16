@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Count the number of "ChatGPT" and "Claude" third-party applications
+#   connected to the function.us.auth0.com Auth0 domain.
+#
+#   Environment:
+#     TOKEN    Auth0 Management API access token (required)
+#
+# USAGE
+#   auth0-count-apps [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   TOKEN=xxx auth0-count-apps
+
+auth0_domain="function.us.auth0.com"
+
+# Print usage information.
+function usage() {
+  echo "usage: auth0-count-apps [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+  echo "Environment:"
+  echo "  TOKEN    Auth0 Management API access token (required)"
+  echo ""
+}
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "auth0-count-apps: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      echo "auth0-count-apps: unknown argument '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "auth0-count-apps: TOKEN is not set" >&2
+  usage >&2
+  exit 1
+fi
+
+# The Auth0 API paginates, so fetch pages until every client is read.
+page=0
+per_page=100
+all_clients="[]"
+
+while true; do
+  if ! response=$(curl -L --silent --fail -X GET \
+    --header "Authorization: Bearer ${TOKEN}" \
+    "https://${auth0_domain}/api/v2/clients?page=${page}&per_page=${per_page}&include_totals=true"); then
+    echo "auth0-count-apps: could not fetch applications; check that TOKEN is valid" >&2
+    exit 1
+  fi
+
+  clients=$(echo "${response}" | jq -r '.clients')
+  total=$(echo "${response}" | jq -r '.total')
+
+  all_clients=$(echo "${all_clients}" "${clients}" | jq -s 'add')
+
+  fetched=$(echo "${all_clients}" | jq 'length')
+  if [[ "${fetched}" -ge "${total}" ]]; then
+    break
+  fi
+
+  ((page++))
+done
+
+# Both matches are case-insensitive, on the application name.
+chatgpt_count=$(echo "${all_clients}" | jq '[.[] | select(.name | test("ChatGPT"; "i"))] | length')
+claude_count=$(echo "${all_clients}" | jq '[.[] | select(.name | test("Claude"; "i"))] | length')
+
+echo "Auth0 Third-Party Application Count"
+echo "Domain: ${auth0_domain}"
+echo ""
+echo "ChatGPT applications: ${chatgpt_count}"
+echo "Claude applications:  ${claude_count}"

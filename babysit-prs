@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Approve every open pull request in a repository whose review threads are
+#   all resolved.
+#
+#   Only the first 100 review threads of each pull request are read.
+#
+# USAGE
+#   babysit-prs [OPTIONS] REPO [AUTHOR]
+#
+# ARGUMENTS
+#   REPO      Repository as owner/name
+#   AUTHOR    Only check pull requests by this GitHub user (optional)
+#
+# OPTIONS
+#   -h, --help    Show this help message
+#
+# EXAMPLES
+#   babysit-prs owner/name
+#   babysit-prs owner/name octocat
+
+set -euo pipefail
+
+# Print usage information.
+function usage() {
+  echo "usage: babysit-prs [OPTIONS] REPO [AUTHOR]"
+  echo ""
+  echo "Arguments:"
+  echo "  REPO      Repository as owner/name"
+  echo "  AUTHOR    Only check pull requests by this GitHub user (optional)"
+  echo ""
+  echo "Options:"
+  echo "  -h, --help    Show this help message"
+  echo ""
+}
+
+args=()
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "babysit-prs: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ${#args[@]} -lt 1 || ${#args[@]} -gt 2 ]]; then
+  echo "babysit-prs: expected REPO and an optional AUTHOR" >&2
+  usage >&2
+  exit 1
+fi
+
+repo="${args[0]}"
+author="${args[1]:-}"
+owner="${repo%/*}"
+name="${repo#*/}"
+
+author_flag=()
+if [[ -n "${author}" ]]; then
+  author_flag=(--author "${author}")
+fi
+
+prs=$(gh pr list --repo "${repo}" --state open "${author_flag[@]}" \
+  --json number --jq '.[].number')
+
+if [[ -z "${prs}" ]]; then
+  echo "babysit-prs: no open pull requests"
+  exit 0
+fi
+
+while read -r pr; do
+  # The `$` names are GraphQL variables, not shell ones.
+  # shellcheck disable=SC2016
+  unresolved=$(gh api graphql -f query='
+    query($owner:String!,$name:String!,$pr:Int!) {
+      repository(owner:$owner,name:$name) {
+        pullRequest(number:$pr) {
+          reviewThreads(first:100) {
+            nodes { isResolved }
+          }
+        }
+      }
+    }' -f owner="${owner}" -f name="${name}" -F pr="${pr}" \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+
+  if [[ "${unresolved}" -eq 0 ]]; then
+    echo "babysit-prs: approving #${pr}"
+    gh pr review "${pr}" --repo "${repo}" --approve
+  else
+    echo "babysit-prs: #${pr} has ${unresolved} unresolved thread(s)"
+  fi
+done <<<"${prs}"

@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Authenticate via Firebase and call a member-app-middleware endpoint
+#   through a Cloud Run proxy.
+#
+#   Environment:
+#     FIREBASE_EMAIL       Firebase user email (required)
+#     FIREBASE_PASSWORD    Firebase user password (required)
+#     FIREBASE_API_KEY     Firebase Web API key. If unset, fetched from GCP
+#                          Secret Manager.
+#     GCP_PROJECT          GCP project (default: function-health-dev-env)
+#     MAM_SERVICE          Cloud Run service name
+#                          (default: development-member-app-mid)
+#     MAM_REGION           Cloud Run region (default: us-east1)
+#
+# USAGE
+#   mam [OPTIONS] METHOD PATH [BODY]
+#
+# ARGUMENTS
+#   METHOD    HTTP method
+#   PATH      Request path, with any query string
+#   BODY      JSON request body (optional)
+#
+# OPTIONS
+#   --port PORT     Local proxy port (default: 8089)
+#   --token-only    Print the Firebase JWT and exit
+#   --no-proxy      Use a Cloud Run proxy that is already running
+#   --raw           Print the raw response without JSON formatting
+#   -h, --help      Show this help message
+#
+# EXAMPLES
+#   mam GET /api/v1/ppp/bundles
+#   mam GET '/api/v1/ppp/bundles?state=CA'
+#   mam POST /api/v1/ppp/bundles/purchase '{"member_id":"123","bundle_id":2}'
+#   mam --token-only
+
+set -euo pipefail
+
+# Print usage information.
+function usage() {
+  echo "usage: mam [OPTIONS] METHOD PATH [BODY]"
+  echo ""
+  echo "Arguments:"
+  echo "  METHOD    HTTP method"
+  echo "  PATH      Request path, with any query string"
+  echo "  BODY      JSON request body (optional)"
+  echo ""
+  echo "Options:"
+  echo "  --port PORT     Local proxy port (default: 8089)"
+  echo "  --token-only    Print the Firebase JWT and exit"
+  echo "  --no-proxy      Use a Cloud Run proxy that is already running"
+  echo "  --raw           Print the raw response without JSON formatting"
+  echo "  -h, --help      Show this help message"
+  echo ""
+}
+
+PORT=8089
+TOKEN_ONLY=false
+SKIP_PROXY=false
+RAW=false
+GCP_PROJECT="${GCP_PROJECT:-function-health-dev-env}"
+MAM_SERVICE="${MAM_SERVICE:-development-member-app-mid}"
+MAM_REGION="${MAM_REGION:-us-east1}"
+FIREBASE_EMAIL="${FIREBASE_EMAIL:-}"
+FIREBASE_PASSWORD="${FIREBASE_PASSWORD:-}"
+FIREBASE_API_KEY="${FIREBASE_API_KEY:-}"
+
+METHOD=""
+PATH_AND_QUERY=""
+BODY=""
+
+# Parse command line arguments.
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      if [[ $# -lt 2 ]]; then
+        echo "mam: option '--port' requires an argument" >&2
+        usage >&2
+        exit 1
+      fi
+      PORT="$2"
+      shift 2
+      ;;
+    --token-only)
+      TOKEN_ONLY=true
+      shift
+      ;;
+    --no-proxy)
+      SKIP_PROXY=true
+      shift
+      ;;
+    --raw)
+      RAW=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "mam: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -z "$METHOD" ]]; then
+        METHOD="${1^^}"
+      elif [[ -z "$PATH_AND_QUERY" ]]; then
+        PATH_AND_QUERY="$1"
+      elif [[ -z "$BODY" ]]; then
+        BODY="$1"
+      else
+        echo "mam: unknown argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+BASE_URL="http://localhost:${PORT}"
+
+if [[ -z "$FIREBASE_EMAIL" || -z "$FIREBASE_PASSWORD" ]]; then
+  echo "mam: FIREBASE_EMAIL and FIREBASE_PASSWORD must be set" >&2
+  exit 1
+fi
+
+if [[ -z "$FIREBASE_API_KEY" ]]; then
+  FIREBASE_API_KEY=$(
+    gcloud secrets versions access latest \
+      --secret=FIREBASE_API_KEY \
+      --project="$GCP_PROJECT"
+  )
+fi
+
+if ! TOKEN=$(
+  curl -sf -X POST \
+    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"email\": \"${FIREBASE_EMAIL}\",
+      \"password\": \"${FIREBASE_PASSWORD}\",
+      \"returnSecureToken\": true
+    }" |
+    python3 -c "import sys,json; print(json.load(sys.stdin)['idToken'])"
+) || [[ -z "$TOKEN" ]]; then
+  echo "mam: could not get a Firebase token" >&2
+  exit 1
+fi
+
+if $TOKEN_ONLY; then
+  echo "$TOKEN"
+  exit 0
+fi
+
+if [[ -z "$METHOD" || -z "$PATH_AND_QUERY" ]]; then
+  echo "mam: METHOD and PATH are required" >&2
+  usage >&2
+  exit 1
+fi
+
+cleanup() {
+  if [[ -n "${PROXY_PID:-}" ]]; then
+    kill "$PROXY_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+if ! $SKIP_PROXY; then
+  if lsof -i ":${PORT}" -sTCP:LISTEN &>/dev/null; then
+    echo "mam: port ${PORT} is already in use; pass --no-proxy or --port" >&2
+    exit 1
+  fi
+  gcloud run services proxy "$MAM_SERVICE" \
+    --region="$MAM_REGION" \
+    --project="$GCP_PROJECT" \
+    --port="$PORT" &>/dev/null &
+  PROXY_PID=$!
+  sleep 3
+fi
+
+CURL_ARGS=(
+  -sf -X "$METHOD"
+  "${BASE_URL}${PATH_AND_QUERY}"
+  -H "Authorization: Bearer ${TOKEN}"
+)
+
+if [[ -n "$BODY" ]]; then
+  CURL_ARGS+=(-H "Content-Type: application/json" -d "$BODY")
+fi
+
+if $RAW; then
+  curl "${CURL_ARGS[@]}"
+else
+  curl "${CURL_ARGS[@]}" | python3 -m json.tool
+fi
