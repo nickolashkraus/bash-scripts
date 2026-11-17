@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+#
+# DESCRIPTION
+#   Watch the BYBO escalation path in incident.io, ack every alert page that
+#   reaches Nickolas, and hand each page to a Claude agent to triage. A page
+#   declared by a human (creator `user` or `workflow`) is left unacked, so
+#   it keeps ringing and escalating, and triage still sends the self-DM.
+#
+#   The poll and the ack are plain API calls, so the model runs only when
+#   a page arrives. Triage runs `/on-call --triage <id>` headless on the
+#   personal account (`~/.claude`), with Opus. It classifies the page, runs
+#   the outage check and sends the self-DM when it matters.
+#
+#   The API key is an incident.io user key, so the ack is recorded as
+#   Nickolas. It is read from the Keychain on every poll (service
+#   `incident-io`, account `function-health`).
+#
+#   State lives in ~/.local/state/on-call:
+#
+#     heartbeat              Time of the last successful poll
+#     pages.jsonl            One line per action taken on a page
+#     control                `stand-down` or `take-over` pauses acks
+#     escalations/<id>.json  The page as the triage agent reads it
+#     triage.log             Output of every agent run
+#
+# USAGE
+#   on-call [OPTIONS]
+#
+# ARGUMENTS
+#   None
+#
+# OPTIONS
+#   -n, --dry-run          Log what it would ack; take no action
+#   -1, --once             Poll once and exit
+#   -p, --path <id>        Watch another escalation path (default EP011)
+#   -i, --interval <secs>  Seconds between polls (default 30)
+#   -h, --help             Show this help message
+#
+# EXAMPLES
+#   on-call
+#   on-call --dry-run --once
+
+set -uo pipefail
+
+API="https://api.incident.io/v2/escalations"
+ME="01K62P0TBPYTRRP4NHV70VA3RD"
+AGENT_OS="${HOME}/nickolashkraus/agent-os/master"
+SHIFTS="${AGENT_OS}/domains/function/projects/on-call/shifts"
+STATE="${HOME}/.local/state/on-call"
+
+path_id="01KNJ8X5TEDYMKF4KHN8PFMWV4"
+interval=30
+dry_run=0
+once=0
+
+key=""
+body=""
+http_code=""
+fail_streak=0
+alerted=0
+
+# Print usage information.
+function usage() {
+  echo "usage: on-call [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -n, --dry-run          Log what it would ack; take no action"
+  echo "  -1, --once             Poll once and exit"
+  echo "  -p, --path <id>        Watch another escalation path (default EP011)"
+  echo "  -i, --interval <secs>  Seconds between polls (default 30)"
+  echo "  -h, --help             Show this help message"
+  echo ""
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n | --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -1 | --once)
+      once=1
+      shift
+      ;;
+    -p | --path)
+      path_id="${2:?on-call: --path needs an escalation path ID}"
+      shift 2
+      ;;
+    -i | --interval)
+      interval="${2:?on-call: --interval needs a number of seconds}"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "on-call: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+for cmd in curl jq claude security; do
+  if ! [ -x "$(command -v "${cmd}")" ]; then
+    echo "on-call: ${cmd} is not installed" >&2
+    exit 1
+  fi
+done
+
+mkdir -p "${STATE}/escalations"
+touch "${STATE}/pages.jsonl"
+
+function now() {
+  date -u +%FT%TZ
+}
+
+function log() {
+  echo "$(now) $*"
+}
+
+# Append one action on a page to pages.jsonl.
+function record() {
+  jq -cn --arg ts "$(now)" --arg id "$1" --arg action "$2" \
+    --arg detail "${3:-}" \
+    '{ts: $ts, id: $id, action: $action, detail: $detail}' \
+    >>"${STATE}/pages.jsonl"
+}
+
+function recorded() {
+  grep -qF "\"id\":\"$1\",\"action\":\"$2\"" "${STATE}/pages.jsonl"
+}
+
+# Rotations hand off on Tuesdays at 17:00Z, and the shift log is named for
+# the start of the current one.
+function shift_log() {
+  local t dow
+  t=$(($(date -u +%s) - 17 * 3600))
+  dow=$(date -u -r "${t}" +%u)
+  echo "${SHIFTS}/$(date -u -r $((t - (dow + 5) % 7 * 86400)) +%F).md"
+}
+
+function shift_note() {
+  local file
+  file=$(shift_log)
+  if ! [ -f "${file}" ]; then
+    printf '# Shift %s\n\n' "$(basename "${file}" .md)" >"${file}"
+  fi
+  echo "- $(now) $*" >>"${file}"
+}
+
+# Call the API. Sets `body` and `http_code`, and fails unless the status is
+# 2xx.
+function api() {
+  local out data=()
+  if [ -n "${3:-}" ]; then
+    data=(-H "Content-Type: application/json" -d "$3")
+  fi
+  if ! out=$(curl -sS -g --max-time 15 -w '\n%{http_code}' -X "$1" \
+    -H "Authorization: Bearer ${key}" ${data[@]+"${data[@]}"} "$2" 2>&1); then
+    http_code="000"
+    body="${out}"
+    return 1
+  fi
+  http_code="${out##*$'\n'}"
+  body="${out%$'\n'*}"
+  [[ ${http_code} == 2* ]]
+}
+
+# Run the agent in the background on the personal account.
+function agent() {
+  if ((dry_run)); then
+    return
+  fi
+  (
+    cd "${AGENT_OS}" &&
+      env -u CLAUDE_CONFIG_DIR claude -p --model opus "/on-call $*" \
+        >>"${STATE}/triage.log" 2>&1
+  ) &
+}
+
+# Report a failed poll. A rejected key notifies at once; anything else
+# notifies after ten failures in a row, about five minutes at the default
+# interval.
+function fail() {
+  log "$1"
+  fail_streak=$((fail_streak + 1))
+  if ((alerted)); then
+    return
+  fi
+  if [[ ${http_code} == 40[13] ]] || ((fail_streak >= 10)); then
+    alerted=1
+    agent --notify "\"on-call: $1; pages are not being acked\""
+  fi
+}
+
+# Ack a page and set `status` from a fresh read, since the respond call
+# returns no body. Fails while the page is still triggered.
+function ack() {
+  local _
+  for _ in 1 2; do
+    api POST "${API}/$1/actions/respond" '{"response":"ack"}'
+    if api GET "${API}/$1"; then
+      status=$(jq -r .escalation.status <<<"${body}")
+      if [ "${status}" != "triggered" ]; then
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+function handle() {
+  local page=$1 id title paged_at latency status control=""
+  id=$(jq -r .id <<<"${page}")
+  title=$(jq -r .title <<<"${page}")
+  paged_at=$(jq -r '.paged_at // empty' <<<"${page}")
+
+  if ! recorded "${id}" seen; then
+    record "${id}" seen "${title}"
+    log "page ${id} \"${title}\""
+  fi
+  if [ -z "${paged_at}" ]; then
+    return
+  fi
+  echo "${page}" >"${STATE}/escalations/${id}.json"
+
+  if [ -f "${STATE}/control" ]; then
+    control=$(head -1 "${STATE}/control")
+  fi
+  if [[ ${control} == stand-down* || ${control} == take-over* ]]; then
+    if ! recorded "${id}" paused; then
+      record "${id}" paused "${control}"
+      log "page ${id} on you, not acked (${control})"
+    fi
+    return
+  fi
+  if jq -e '.creator | has("user") or has("workflow")' \
+    <<<"${page}" >/dev/null 2>&1; then
+    if ((dry_run)); then
+      if ! recorded "${id}" would-pass; then
+        record "${id}" would-pass
+        log "page ${id} on you, declared by a human, would leave it"
+      fi
+    elif ! recorded "${id}" passed; then
+      record "${id}" passed
+      log "page ${id} on you, declared by a human, not acked"
+      shift_note "${id} \"${title}\" declared by a human, left for you"
+      agent --triage "${id}"
+    fi
+    return
+  fi
+  if ((dry_run)); then
+    if ! recorded "${id}" would-ack; then
+      record "${id}" would-ack
+      log "page ${id} on you, would ack"
+    fi
+    return
+  fi
+
+  if ack "${id}"; then
+    latency=$(jq -r '.paged_at | sub("\\.[0-9]+"; "") | fromdateiso8601
+      | now - . | floor' <<<"${page}")
+    record "${id}" acked "${status} ${latency}s"
+    log "page ${id} ${status} ${latency}s after it reached you"
+    shift_note "${id} \"${title}\" ${status} ${latency}s by the script"
+    agent --triage "${id}"
+  elif ! recorded "${id}" ack-failed; then
+    record "${id}" ack-failed "HTTP ${http_code}"
+    log "page ${id} ack failed (HTTP ${http_code}); retrying every poll"
+    shift_note "${id} \"${title}\" ack failed (HTTP ${http_code})"
+    agent --triage "${id}" --ack-failed
+  fi
+}
+
+function poll() {
+  local page query
+  if ! key=$(security find-generic-password -s incident-io \
+    -a function-health -w 2>/dev/null); then
+    http_code="401"
+    fail "no incident.io key in the Keychain"
+    return
+  fi
+  query="escalation_path[one_of]=${path_id}&status[one_of]=triggered"
+  query+="&created_at[gte]=$(date -u -v-1d +%F)&page_size=50"
+  if ! api GET "${API}?${query}"; then
+    fail "list failed (HTTP ${http_code})"
+    return
+  fi
+  fail_streak=0
+  alerted=0
+  now >"${STATE}/heartbeat"
+
+  while IFS= read -r page; do
+    handle "${page}"
+  done < <(jq -c --arg me "${ME}" '
+    .escalations[]
+    | . + {paged_at: ([.events[]
+        | select(.event == "notified_users" and any(.users[]?; .id == $me))
+        | .occurred_at] | first)}' <<<"${body}")
+}
+
+if ((once)); then
+  poll
+  exit 0
+fi
+
+caffeinate -i -w $$ &
+log "watching ${path_id} every ${interval}s$( ((dry_run)) && echo ', dry run')"
+while :; do
+  poll
+  sleep "${interval}"
+done
