@@ -26,7 +26,8 @@
 #
 #   A link keeps its name for as long as its worktree exists, so adding a
 #   worktree never moves a name an agent is already using; the new one takes
-#   the qualified or numbered name instead.
+#   the qualified or numbered name instead. The one exception is a change to
+#   a repository's short name, which renames that repository's links.
 #
 #   $HOME/w is fully managed: every symlink there that does not point at
 #   a current worktree is removed, including one made by hand. Nothing
@@ -115,7 +116,7 @@ function short_name() {
     member-app-middleware) echo "mam" ;;
     member-app) echo "app" ;;
     transaction-service) echo "ts" ;;
-    membership-service) echo "memb" ;;
+    membership-service) echo "ms" ;;
     ppp-service) echo "ppp" ;;
     enterprise-service) echo "ent" ;;
     admin-app-fe-next) echo "admin" ;;
@@ -167,6 +168,7 @@ function worktree_qualifier() {
 
 declare -a wt_path=()
 declare -a wt_name=()
+declare -A wt_short=()
 declare -A name_count=()
 
 # Collect every worktree of every bare repository found in SCAN_DIRS.
@@ -195,6 +197,7 @@ for scan in "${SCAN_DIRS[@]}"; do
       fi
       wt_path+=("${path}")
       wt_name+=("${name}")
+      wt_short["${path}"]="${short}"
       name_count["${name}"]=$((${name_count["${name}"]:-0} + 1))
     done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null)
   done
@@ -212,7 +215,12 @@ if [ -d "${LINK_DIR}" ]; then
     target=$(readlink "${entry}")
     [ -n "${is_worktree["${target}"]:-}" ] || continue
     [ -z "${linked["${target}"]:-}" ] || continue
-    wanted["$(basename "${entry}")"]="${target}"
+    # A link named for a short name its repository no longer goes by is
+    # not kept, so a change to the table in short_name() renames it.
+    name=$(basename "${entry}")
+    short="${wt_short["${target}"]}"
+    [[ "${name}" == "${short}" || "${name}" == "${short}-"* ]] || continue
+    wanted["${name}"]="${target}"
     linked["${target}"]=1
   done
 fi
