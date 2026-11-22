@@ -111,7 +111,7 @@ function do_pull() {
   # "Updating <sha>..<sha>" as its first line, so the pattern below matched it
   # and counted the repo as updated while it sat behind. Anything git calls a
   # failure is an error here, whatever it printed.
-  elif (( status != 0 )); then
+  elif ((status != 0)); then
     echo -e "${red}Error"
     echo "${output}"
     echo -e "${reset}"

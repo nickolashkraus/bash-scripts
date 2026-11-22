@@ -65,6 +65,9 @@ if ! [ -x "$(command -v gsed)" ]; then
 fi
 
 function add_newline_eof() {
+  # The sed script is literal: `$a\` appends nothing after the last line,
+  # which ends it with a newline when one is missing.
+  # shellcheck disable=SC1003,SC2016
   find . -type f \
     -name "*" \
     -not -name "*.png" \

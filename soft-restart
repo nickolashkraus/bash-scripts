@@ -48,15 +48,16 @@ LOG=/tmp/soft-restart.log
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf "${yellow}DRY${reset} %s\n" "$*"
+    printf '%bDRY%b %s\n' "${yellow}" "${reset}" "$*"
   else
-    printf "${green}RUN${reset} %s\n" "$*"
-    eval "$@" || true
+    printf '%bRUN%b %s\n' "${green}" "${reset}" "$*"
+    eval "$*" || true
   fi
 }
 
 if [[ "$DRY_RUN" -eq 0 && -z "${SOFT_RESTART_DETACHED:-}" ]]; then
-  printf "${yellow}==>${reset} Priming sudo (needed for purge + DNS flush)\n"
+  printf '%b==>%b Priming sudo (needed for purge + DNS flush)\n' \
+    "${yellow}" "${reset}"
   sudo -v
 
   (while true; do
@@ -65,7 +66,8 @@ if [[ "$DRY_RUN" -eq 0 && -z "${SOFT_RESTART_DETACHED:-}" ]]; then
     kill -0 "$$" 2>/dev/null || exit
   done) 2>/dev/null &
 
-  printf "${yellow}==>${reset} Detaching from terminal so we can quit it\n"
+  printf '%b==>%b Detaching from terminal so we can quit it\n' \
+    "${yellow}" "${reset}"
   printf "    Log: %s\n" "$LOG"
   printf "    Re-attach tmux with: tmux attach\n\n"
 

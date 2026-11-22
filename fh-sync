@@ -117,7 +117,7 @@ if [ -f "${exclude_file}" ]; then
     line="$(echo "${line}" | xargs)"
     [ -z "${line}" ] && continue
     exclude_args+=(--exclude "/${line}\.git$")
-  done < "${exclude_file}"
+  done <"${exclude_file}"
 fi
 
 echo -e "${green}Cloning repositories...${reset}"
