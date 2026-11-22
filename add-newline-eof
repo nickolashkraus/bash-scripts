@@ -68,7 +68,7 @@ function add_newline_eof() {
   find . -type f \
     -name "*" \
     -not -name "*.png" \
-    -not -path "**t /.git/*" \
+    -not -path "**/.git/*" \
     -not -path "**/node_modules/*" \
     -exec gsed -i '$a\' {} \;
 }
