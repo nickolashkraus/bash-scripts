@@ -3,12 +3,16 @@
 # DESCRIPTION
 #   Clone all Bitbucket repositories for a given project.
 #
+#   The credentials can be passed via a command-line argument or set via the
+#   environment variable BITBUCKET_CREDENTIALS, which keeps them out of the
+#   process list and shell history.
+#
 # USAGE
-#   git-clone-bb [OPTIONS] PROJECT_KEY CREDENTIALS
+#   git-clone-bb [OPTIONS] PROJECT_KEY [CREDENTIALS]
 #
 # ARGUMENTS
 #   PROJECT_KEY    Project key for the repository
-#   CREDENTIALS    Basic auth credentials
+#   CREDENTIALS    Basic auth credentials (can also be set via BITBUCKET_CREDENTIALS)
 #
 # OPTIONS
 #   -h, --help    Show this help message
@@ -23,11 +27,11 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: git-clone-bb [OPTIONS] PROJECT_KEY CREDENTIALS"
+  echo "usage: git-clone-bb [OPTIONS] PROJECT_KEY [CREDENTIALS]"
   echo ""
   echo "Arguments:"
   echo "  PROJECT_KEY    Project key for the repository"
-  echo "  CREDENTIALS    Basic auth credentials"
+  echo "  CREDENTIALS    Basic auth credentials (can also be set via BITBUCKET_CREDENTIALS)"
   echo ""
   echo "Options:"
   echo "  -h, --help    Show this help message"
@@ -70,6 +74,11 @@ if [ -z "${project_key}" ]; then
   exit 1
 fi
 
+# If no credentials provided as argument, check environment variable.
+if [ -z "${credentials}" ]; then
+  credentials="${BITBUCKET_CREDENTIALS}"
+fi
+
 if [ -z "${credentials}" ]; then
   echo "git-clone-bb: must provide basic auth credentials" >&2
   usage >&2
@@ -78,23 +87,42 @@ fi
 
 resource="https://bitbucket.dwolla.net/rest/api/1.0/projects/${project_key}/repos?limit=2048"
 
-mapfile -t ssh_urls <<EOF_SSH_URLS
-$(curl -s -X GET \
-  -H "Authorization: Basic ${credentials}" \
-  -H "Content-Type: application/json" \
-  "${resource}" |
-  jq -r '.values[].links.clone[] | select(.name == "ssh") | .href')
-EOF_SSH_URLS
+# The server can cap `limit`, so follow `nextPageStart` until the last page.
+ssh_urls=()
+start=0
+while true; do
+  if ! response=$(curl -fsS -X GET \
+    --header @<(printf 'Authorization: Basic %s\n' "${credentials}") \
+    -H "Content-Type: application/json" \
+    "${resource}&start=${start}"); then
+    echo "git-clone-bb: Bitbucket API request failed" >&2
+    exit 1
+  fi
+  if ! echo "${response}" | jq -e '.values' >/dev/null 2>&1; then
+    echo "git-clone-bb: unexpected Bitbucket API response" >&2
+    exit 1
+  fi
+  mapfile -t urls < <(echo "${response}" |
+    jq -r '.values[].links.clone[] | select(.name == "ssh") | .href')
+  ssh_urls+=("${urls[@]}")
+  start=$(echo "${response}" |
+    jq -r 'if .isLastPage then empty else .nextPageStart // empty end')
+  [ -n "${start}" ] || break
+done
 
 cloned=()
+failed=false
 
 for ssh_url in "${ssh_urls[@]}"; do
   echo Cloning "${ssh_url}"...
-  output=$(git clone "${ssh_url}" 2>&1)
-  if echo "${output}" | grep -qi "already exists"; then
+  if output=$(git clone "${ssh_url}" 2>&1); then
+    cloned+=("$(basename "${ssh_url}" .git)")
+  elif echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
   else
-    cloned+=("$(basename "${ssh_url}" .git)")
+    echo "git-clone-bb: clone of ${ssh_url} failed" >&2
+    echo "${output}" >&2
+    failed=true
   fi
 done
 
@@ -105,3 +133,5 @@ if ((${#cloned[@]} > 0)); then
     echo "  ${repo}"
   done
 fi
+
+[ "${failed}" = false ]
