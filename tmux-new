@@ -60,8 +60,14 @@ function tmux_new() {
   done
   SESSION_NAME="${BASE_NAME}-${i}"
 
+  # Inside tmux, attach-session refuses to nest, so switch to the session.
+  ATTACH="attach-session"
+  if [[ -n "${TMUX:-}" ]]; then
+    ATTACH="switch-client"
+  fi
+
   tmux new-session -d -s "${SESSION_NAME}" \; \
-    attach-session -t "${SESSION_NAME}"
+    "${ATTACH}" -t "${SESSION_NAME}"
 }
 
 tmux_new
