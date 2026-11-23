@@ -56,15 +56,14 @@ if ! [ -x "$(command -v pbpaste)" ]; then
 fi
 
 # This command will do the following:
-# 1. Convert whitespace to hyphens ('-')
-# 2. Remove ',', ';', '/', '?', ':', '@', '=', '&' characters
-# 3. Deduplicate hyphens ('--' >>> '-')
-# 4. Change all characters to lowercase
-# 5. Remove trailing newline ('\n')
+# 1. Join lines into one
+# 2. Change all characters to lowercase
+# 3. Convert whitespace to hyphens ('-')
+# 4. Remove every character other than letters, digits, '.', '_' and '-'
+# 5. Deduplicate hyphens ('--' >>> '-') and trim leading and trailing ones
+# 6. Remove trailing newline ('\n')
 pbpaste |
-  sed 's/[ ]/-/g' |
-  sed 's/[,;/?:@=&]//g' |
-  sed -E 's/[-]{2,}/-/g' |
-  awk '{print tolower($1)}' |
+  tr '\n' ' ' |
+  perl -CSD -pe '$_ = lc; s/\s+/-/g; s/[^\w.-]//g; s/-{2,}/-/g; s/^-+|-+$//g' |
   tr -d '\n' |
   pbcopy
