@@ -58,27 +58,45 @@ else
   fi
 fi
 
+status=0
+
+# Run find from the current directory, skipping virtual environments (.venv,
+# venv, .tox), .git and node_modules at any depth, whose contents belong to
+# installed packages, not this project's build. A failure marks the run as
+# failed.
+function find_artifacts() {
+  find . \( -name .venv -o -name venv -o -name .tox -o -name .git \
+    -o -name node_modules \) -prune -o "$@" || status=1
+}
+
+# Remove a top-level directory. -type d does not match a symlink, so a
+# symlink with this name, and whatever it points to, is left alone.
+function remove_dir() {
+  find . -maxdepth 1 -name "$1" -type d -exec rm -fr {} + || status=1
+}
+
 function python_clean() {
   # Remove build artifacts.
-  find . -name '*.egg' -exec rm -fr {} +
-  find . -name '*.egg-info' -exec rm -fr {} +
-  rm -fr .eggs/
-  rm -fr build/
-  rm -fr dist/
+  find_artifacts -name '*.egg' -exec rm -fr {} +
+  find_artifacts -name '*.egg-info' -exec rm -fr {} +
+  remove_dir .eggs
+  remove_dir build
+  remove_dir dist
   # Remove Python artifacts.
-  find . -name '*.pyc' -exec rm -f {} +
-  find . -name '*.pyo' -exec rm -f {} +
-  find . -name '*~' -exec rm -f {} +
-  find . -name '__pycache__' -exec rm -fr {} +
+  find_artifacts -name '*.pyc' -exec rm -f {} +
+  find_artifacts -name '*.pyo' -exec rm -f {} +
+  find_artifacts -name '*~' -exec rm -f {} +
+  find_artifacts -name '__pycache__' -exec rm -fr {} +
   # Remove test and coverage artifacts.
-  find . -name '*,cover' -exec rm -f {} +
-  find . -name '.coverage' -exec rm -f {} +
-  find . -name '.pytest_cache' -exec rm -fr {} +
-  find . -name 'cover' -exec rm -fr {} +
-  find . -name 'coverage.xml' -exec rm -f {} +
-  find . -name 'htmlcov' -exec rm -fr {} +
+  find_artifacts -name '*,cover' -exec rm -f {} +
+  find_artifacts -name '.coverage' -exec rm -f {} +
+  find_artifacts -name '.pytest_cache' -exec rm -fr {} +
+  remove_dir cover
+  find_artifacts -name 'coverage.xml' -exec rm -f {} +
+  find_artifacts -name 'htmlcov' -exec rm -fr {} +
 }
 
 pushd "${dir}" >/dev/null || exit
 python_clean
 popd >/dev/null || exit
+exit "${status}"
