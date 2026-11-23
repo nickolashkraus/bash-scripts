@@ -48,9 +48,13 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
+      if [ -n "${dir}" ]; then
+        echo "git-status: extra argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
       dir="$1"
       shift
-      break
       ;;
   esac
 done
@@ -58,20 +62,25 @@ done
 if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
-  if [ ! -e "${dir}" ]; then
-    echo "git-status: ${dir} does not exist" >&2
+  if [ ! -d "${dir}" ]; then
+    echo "git-status: ${dir} is not a directory" >&2
     exit 1
   fi
 fi
 
 function do_status() {
   local output
-  output=$(git status 2>&1)
-  if [[ "${output}" =~ modified ]]; then
+  if ! output=$(git status --porcelain=v2 --branch 2>&1); then
+    echo "git-status: ${output}" >&2
+    return
+  fi
+  # Porcelain v2 marks tracked changes with 1, 2 or u, untracked files with ?,
+  # and commits ahead of the upstream with `# branch.ab +N`.
+  if grep -q '^[12u] ' <<<"${output}"; then
     echo -e "${red}Modified files${reset}"
-  elif [[ "${output}" =~ untracked ]]; then
+  elif grep -q '^? ' <<<"${output}"; then
     echo -e "${red}Untracked files${reset}"
-  elif [[ "${output}" =~ ahead ]]; then
+  elif grep -q '^# branch\.ab +[1-9]' <<<"${output}"; then
     echo -e "${yellow}Use \"git push\" to publish your local commits${reset}"
   else
     echo -e "${green}Working tree clean${reset}"
