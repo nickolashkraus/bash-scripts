@@ -3,13 +3,13 @@
 # DESCRIPTION
 #   Maintain short symlinks to every Git worktree under $HOME/w.
 #
-#   A worktree path like
+#   A worktree of a bare repository in one of the SCAN_DIRS, like
 #
-#     ~/src/example-service/abc-123-short-description-of-the-work
+#     ~/nickolashkraus/example-service/abc-123-short-description-of-the-work
 #
 #   becomes
 #
-#     ~/w/es-123-short
+#     ~/w/es-123
 #
 #   Every Bash call made in a worktree pays the long form, because the
 #   shell working directory resets between calls, so the prefix is retyped
@@ -18,8 +18,8 @@
 #   Naming: <repo-short>-<issue-number>[-<word>], or <repo-short> alone for
 #   the default worktree (main, master, dev). The issue number comes from a
 #   branch slug like `abc-123-...`. A trailing word is added only when two
-#   worktrees of one repo share an issue number, which happens whenever one
-#   ticket is worked in two repositories at the same time.
+#   worktrees of one repo share an issue number, as when one ticket has two
+#   branches in the same repository.
 #
 #   Repo short names come from the table in short_name(), so whatever short
 #   name a repository goes by elsewhere and `~/w/<short>` agree.
@@ -32,6 +32,9 @@
 #   $HOME/w is fully managed: every symlink there that does not point at
 #   a current worktree is removed, including one made by hand. Nothing
 #   outside $HOME/w is touched, and non-symlink entries there are left alone.
+#
+#   Environment:
+#     WORKTREE_LINK_DIR    Directory for the links (default: $HOME/w)
 #
 # USAGE
 #   worktree-links [OPTIONS]
@@ -247,6 +250,7 @@ done
 created=0
 updated=0
 removed=0
+failed=0
 
 if [ "${dry_run}" -eq 0 ]; then
   mkdir -p "${LINK_DIR}" || exit 1
@@ -260,32 +264,48 @@ if [ -d "${LINK_DIR}" ]; then
     target=$(readlink "${entry}")
     if [ "${wanted["${name}"]:-}" != "${target}" ]; then
       if [ -z "${wanted["${name}"]:-}" ]; then
-        [ "${quiet}" -eq 1 ] || echo "  remove  ${name} -> ${target}"
-        [ "${dry_run}" -eq 1 ] || rm -f "${entry}"
-        removed=$((removed + 1))
+        if [ "${dry_run}" -eq 1 ] || rm -f "${entry}"; then
+          [ "${quiet}" -eq 1 ] || echo "  remove  ${name} -> ${target}"
+          removed=$((removed + 1))
+        else
+          echo "worktree-links: could not remove ${name}" >&2
+          failed=1
+        fi
       fi
     fi
   done
 fi
 
-for name in $(printf '%s\n' "${!wanted[@]}" | sort); do
+# A name comes from a directory name and may hold a space. With no worktrees,
+# printf still prints one empty line.
+while IFS= read -r name; do
+  [ -n "${name}" ] || continue
   path="${wanted["${name}"]}"
   link="${LINK_DIR}/${name}"
   if [ -L "${link}" ]; then
     [ "$(readlink "${link}")" = "${path}" ] && continue
-    [ "${quiet}" -eq 1 ] || echo "  update  ${name} -> ${path}"
-    [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"
-    updated=$((updated + 1))
+    if [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"; then
+      [ "${quiet}" -eq 1 ] || echo "  update  ${name} -> ${path}"
+      updated=$((updated + 1))
+    else
+      echo "worktree-links: could not link ${name}" >&2
+      failed=1
+    fi
   elif [ -e "${link}" ]; then
-    echo "  SKIP    ${name} exists and is not a symlink" >&2
+    echo "worktree-links: skipping ${name}: exists and is not a symlink" >&2
   else
-    [ "${quiet}" -eq 1 ] || echo "  create  ${name} -> ${path}"
-    [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"
-    created=$((created + 1))
+    if [ "${dry_run}" -eq 1 ] || ln -sfn "${path}" "${link}"; then
+      [ "${quiet}" -eq 1 ] || echo "  create  ${name} -> ${path}"
+      created=$((created + 1))
+    else
+      echo "worktree-links: could not link ${name}" >&2
+      failed=1
+    fi
   fi
-done
+done < <(printf '%s\n' "${!wanted[@]}" | sort)
 
 prefix=""
 [ "${dry_run}" -eq 1 ] && prefix="(dry run) "
 echo "${prefix}${LINK_DIR}: ${#wanted[@]} worktrees," \
   "${created} created, ${updated} updated, ${removed} removed"
+exit "${failed}"
