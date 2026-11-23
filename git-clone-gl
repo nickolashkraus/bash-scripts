@@ -98,29 +98,37 @@ fi
 
 eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/id_rsa" >/dev/null 2>&1
+# The agent holds the decrypted key, so stop it on every exit path.
+trap 'ssh-agent -k >/dev/null 2>&1' EXIT
 
-# Test SSH connection to GitHub.
-ssh_output=$(ssh -T git@github.com 2>&1)
-if ! echo "$ssh_output" | grep -q "successfully authenticated"; then
-  echo "git-clone-gl: GitHub SSH authentication failed" >&2
+# Test SSH connection to GitLab.
+ssh_output=$(ssh -T git@gitlab.internal.granular.ag 2>&1)
+if ! echo "$ssh_output" | grep -q "Welcome to GitLab"; then
+  echo "git-clone-gl: GitLab SSH authentication failed" >&2
   echo "$ssh_output" >&2
   exit 1
 fi
 
-# Encode URL (convert '\' to '%2f').
-group=$(echo "${group}" | sed "s/\//%2f/")
+# Encode URL (convert every '/' to '%2F').
+group="${group//\//%2F}"
 
 # The GitLab API returns a maximum of 100 results per page. Therefore, we
 # increment page until no results are returned.
 page=1
 ssh_urls=()
 while true; do
-  mapfile -t urls <<EOF_URLS
-$(curl -L --silent -X GET \
-    --header "Authorization: Bearer ${access_token}" \
-    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false" |
-    jq -r '.[].ssh_url_to_repo')
-EOF_URLS
+  response=$(curl -L --silent -X GET \
+    --header @<(printf 'Authorization: Bearer %s\n' "${access_token}") \
+    "https://gitlab.internal.granular.ag/api/v4/groups/${group}/projects?per_page=100&page=${page}&order_by=name&with_shared=false")
+
+  # If the response is not an array, GitLab returned an error object.
+  if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
+    echo "git-clone-gl: GitLab API error: ${msg}" >&2
+    exit 1
+  fi
+
+  mapfile -t urls < <(echo "${response}" | jq -r '.[].ssh_url_to_repo')
   # Check if the array is empty or contains only an empty string.
   if [ ${#urls[@]} -eq 0 ] || [ -z "${urls[0]}" ]; then
     break
@@ -130,14 +138,18 @@ EOF_URLS
 done
 
 cloned=()
+failed=false
 
 for ssh_url in "${ssh_urls[@]}"; do
   echo Cloning "${ssh_url}"...
-  output=$(git clone "${ssh_url}" 2>&1)
-  if echo "${output}" | grep -qi "already exists"; then
+  if output=$(git clone "${ssh_url}" 2>&1); then
+    cloned+=("$(basename "${ssh_url}" .git)")
+  elif echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
   else
-    cloned+=("$(basename "${ssh_url}" .git)")
+    echo "git-clone-gl: clone of ${ssh_url} failed" >&2
+    echo "${output}" >&2
+    failed=true
   fi
 done
 
@@ -149,5 +161,4 @@ if ((${#cloned[@]} > 0)); then
   done
 fi
 
-# Clean up ssh-agent.
-ssh-agent -k >/dev/null 2>&1
+[ "${failed}" = false ]
