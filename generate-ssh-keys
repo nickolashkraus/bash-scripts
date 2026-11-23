@@ -9,7 +9,7 @@
 #   generate-ssh-keys [OPTIONS]
 #
 # OPTIONS
-#   -f FILE       Path to the output keyfile
+#   -f FILE       Name of the key file in ~/.ssh
 #   -h, --help    Show this help message
 #
 # EXAMPLES
@@ -20,7 +20,7 @@ function usage() {
   echo "usage: generate-ssh-keys [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -f FILE       Path to the output keyfile"
+  echo "  -f FILE       Name of the key file in ~/.ssh"
   echo "  -h, --help    Show this help message"
   echo ""
 }
@@ -31,6 +31,10 @@ output_keyfile=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     -f)
+      if [[ $# -lt 2 || $2 == -* ]]; then
+        echo "generate-ssh-keys: $1 requires a file name" >&2
+        exit 1
+      fi
       output_keyfile=$2
       shift 2
       ;;
@@ -57,8 +61,10 @@ if [ -z "${output_keyfile}" ]; then
   exit 1
 fi
 
+keyfile="${HOME}/.ssh/${output_keyfile}"
+
 # Exit if a key pair of the name 'output_keyfile' already exists.
-if [ -e "${output_keyfile}" ]; then
+if [ -e "${keyfile}" ]; then
   echo "generate-ssh-keys: file already exists" >&2
   exit 1
 fi
@@ -69,7 +75,7 @@ if [ ! -d "${HOME}/.ssh" ]; then
 fi
 
 # Generate an RSA key pair.
-ssh-keygen -b 2048 -t rsa -f "${HOME}/.ssh/${output_keyfile}" -P ""
+ssh-keygen -b 2048 -t rsa -f "${keyfile}" -P "" || exit
 
 # Restrict access to the private key.
-chmod 400 "${HOME}/.ssh/${output_keyfile}"
+chmod 400 "${keyfile}"
