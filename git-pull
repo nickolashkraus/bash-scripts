@@ -11,11 +11,11 @@
 #   None
 #
 # OPTIONS
-#   -m, --master           Whether to check out master or main before pulling
-#   -i, --identity-file    File for the identity (private key) for public key authentication
-#                          (optional, defaults to id_rsa)
-#   -d, --directory DIR    Directory to use (optional, defaults to the current directory)
-#   -h, --help             Show this help message
+#   -m, --master                Whether to check out master or main before pulling
+#   -i, --identity-file FILE    File for the identity (private key) for public key authentication
+#                               (optional, defaults to id_rsa)
+#   -d, --directory DIR         Directory to use (optional, defaults to the current directory)
+#   -h, --help                  Show this help message
 #
 # EXAMPLES
 #   git-pull
@@ -41,12 +41,21 @@ function usage() {
   echo "usage: git-pull [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -m, --master           Whether to check out master or main before pulling"
-  echo "  -i, --identity-file    File for the identity (private key) for public key authentication"
-  echo "                         (optional, defaults to id_rsa)"
-  echo "  -d, --directory DIR    Directory to use (optional, defaults to the current directory)"
-  echo "  -h, --help             Show this help message"
+  echo "  -m, --master                Whether to check out master or main before pulling"
+  echo "  -i, --identity-file FILE    File for the identity (private key) for public key authentication"
+  echo "                              (optional, defaults to id_rsa)"
+  echo "  -d, --directory DIR         Directory to use (optional, defaults to the current directory)"
+  echo "  -h, --help                  Show this help message"
   echo ""
+}
+
+# Exit unless the option in $1 has a value in $2.
+function require_value() {
+  if [[ $# -lt 2 || $2 == -* ]]; then
+    echo "git-pull: option '$1' requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
 }
 
 # Print the in-progress operation (rebase or merge) in the current worktree, or
@@ -138,24 +147,31 @@ function do_pull() {
   fi
 }
 
+# Print why checking out branch $1 failed, given git's output in $2.
+function checkout_failed() {
+  if [[ "$2" =~ did[[:space:]]not[[:space:]]match ]]; then
+    echo -e "${red}Branch '$1' does not exist.${reset}"
+  else
+    echo -e "${red}$2${reset}"
+  fi
+}
+
 # Check out the default branch and set upstream tracking.
 function checkout_default() {
   local output
-  if ! git checkout master >/dev/null 2>&1; then
-    echo -e "${red}Branch 'master' does not exist.${reset}"
-    if ! git checkout main >/dev/null 2>&1; then
-      echo -e "${red}Branch 'main' does not exist.${reset}"
+  if ! output=$(git checkout master 2>&1); then
+    checkout_failed master "${output}"
+    if ! output=$(git checkout main 2>&1); then
+      checkout_failed main "${output}"
       return 1
     else
-      output=$(git branch --set-upstream-to=origin/main main 2>&1)
-      if [[ "${output}" =~ error ]]; then
+      if ! git branch --set-upstream-to=origin/main main >/dev/null 2>&1; then
         echo -e "${red}The requested upstream branch 'origin/main' does not exist.${reset}"
         return 1
       fi
     fi
   else
-    output=$(git branch --set-upstream-to=origin/master master 2>&1)
-    if [[ "${output}" =~ error ]]; then
+    if ! git branch --set-upstream-to=origin/master master >/dev/null 2>&1; then
       echo -e "${red}The requested upstream branch 'origin/master' does not exist.${reset}"
       return 1
     fi
@@ -174,10 +190,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -i | --identity-file)
+      require_value "$@"
       identity_file=$2
       shift 2
       ;;
     -d | --directory)
+      require_value "$@"
       dir=$2
       shift 2
       ;;
@@ -201,14 +219,16 @@ done
 if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
-  if [ ! -e "${dir}" ]; then
-    echo "git-pull: ${dir} does not exist" >&2
+  if [ ! -d "${dir}" ]; then
+    echo "git-pull: ${dir} is not a directory" >&2
     exit 1
   fi
 fi
 
 eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
+# The agent holds the decrypted key, so stop it on every exit path.
+trap 'ssh-agent -k >/dev/null 2>&1' EXIT
 
 for d in "${dir}"/*; do
   [ -d "${d}" ] || continue
@@ -246,6 +266,7 @@ for d in "${dir}"/*; do
   pushd "${d}" >/dev/null || exit
   if [ "${master}" == true ]; then
     checkout_default || {
+      ((errors++))
       popd >/dev/null || exit
       continue
     }
@@ -265,9 +286,6 @@ echo "  No tracking: ${no_tracking}"
 echo "  Upstream gone: ${upstream_gone}"
 echo "  Not a repository: ${not_git}"
 echo "  Skipped: ${skipped}"
-
-# Clean up ssh-agent.
-ssh-agent -k >/dev/null 2>&1
 
 # Propagate failures so callers can report them.
 [ "${errors}" -eq 0 ]
