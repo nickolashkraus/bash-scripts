@@ -135,15 +135,16 @@ if [[ -z "$FIREBASE_API_KEY" ]]; then
   )
 fi
 
+# The body is built by a JSON encoder and sent on stdin, so a quote in the
+# password cannot break it and the password stays off curl's argv.
 if ! TOKEN=$(
-  curl -sf -X POST \
-    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"email\": \"${FIREBASE_EMAIL}\",
-      \"password\": \"${FIREBASE_PASSWORD}\",
-      \"returnSecureToken\": true
-    }" |
+  python3 -c 'import json, os; e = os.environ; print(json.dumps({
+    "email": e["FIREBASE_EMAIL"], "password": e["FIREBASE_PASSWORD"],
+    "returnSecureToken": True}))' |
+    curl -sf -X POST \
+      "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}" \
+      -H "Content-Type: application/json" \
+      --data @- |
     python3 -c "import sys,json; print(json.load(sys.stdin)['idToken'])"
 ) || [[ -z "$TOKEN" ]]; then
   echo "mam: could not get a Firebase token" >&2
@@ -181,10 +182,12 @@ if ! $SKIP_PROXY; then
   sleep 3
 fi
 
+# The token header goes through a pipe so the token never appears in `ps`
+# or on disk (bash 3.2 backs a here-string with a temp file).
 CURL_ARGS=(
-  -sf -X "$METHOD"
+  -sS --fail-with-body -X "$METHOD"
   "${BASE_URL}${PATH_AND_QUERY}"
-  -H "Authorization: Bearer ${TOKEN}"
+  -H @-
 )
 
 if [[ -n "$BODY" ]]; then
@@ -192,7 +195,8 @@ if [[ -n "$BODY" ]]; then
 fi
 
 if $RAW; then
-  curl "${CURL_ARGS[@]}"
+  printf 'Authorization: Bearer %s\n' "${TOKEN}" | curl "${CURL_ARGS[@]}"
 else
-  curl "${CURL_ARGS[@]}" | python3 -m json.tool
+  printf 'Authorization: Bearer %s\n' "${TOKEN}" | curl "${CURL_ARGS[@]}" |
+    python3 -m json.tool
 fi
