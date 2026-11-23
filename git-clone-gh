@@ -30,13 +30,13 @@
 #   TOKEN    GitHub personal access token (can also be set via GITHUB_API_TOKEN)
 #
 # OPTIONS
-#   -u, --user               User's repositories to clone
-#   -o, --org                Organization's repositories to clone
-#   -i, --identity-file      File for the identity (private key) for public key authentication
-#                            (optional, defaults to id_rsa)
-#   -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)
-#   -s, --skip-archived      Whether to skip archived repositories
-#   -h, --help               Show this help message
+#   -u, --user USER             User's repositories to clone
+#   -o, --org ORG               Organization's repositories to clone
+#   -i, --identity-file FILE    File for the identity (private key) for public key authentication
+#                               (optional, defaults to id_rsa)
+#   -e, --exclude PATTERN       Add a pattern to exclude (can be used multiple times)
+#   -s, --skip-archived         Whether to skip archived repositories
+#   -h, --help                  Show this help message
 #
 # EXAMPLES
 #   git-clone-gh -u nickolashkraus ghp_xxx
@@ -59,17 +59,26 @@ function usage() {
   echo "usage: git-clone-gh [OPTIONS] [TOKEN]"
   echo ""
   echo "Arguments:"
-  echo "  TOKEN    GitHub personal access token"
+  echo "  TOKEN    GitHub personal access token (can also be set via GITHUB_API_TOKEN)"
   echo ""
   echo "Options:"
-  echo "  -u, --user               User's repositories to clone"
-  echo "  -o, --org                Organization's repositories to clone"
-  echo "  -i, --identity-file      File for the identity (private key) for public key authentication"
-  echo "                           (optional, defaults to id_rsa)"
-  echo "  -e, --exclude PATTERN    Add a pattern to exclude (can be used multiple times)"
-  echo "  -s, --skip-archived      Whether to skip archived repositories"
-  echo "  -h, --help               Show this help message"
+  echo "  -u, --user USER             User's repositories to clone"
+  echo "  -o, --org ORG               Organization's repositories to clone"
+  echo "  -i, --identity-file FILE    File for the identity (private key) for public key authentication"
+  echo "                              (optional, defaults to id_rsa)"
+  echo "  -e, --exclude PATTERN       Add a pattern to exclude (can be used multiple times)"
+  echo "  -s, --skip-archived         Whether to skip archived repositories"
+  echo "  -h, --help                  Show this help message"
   echo ""
+}
+
+# Exit unless the option in $1 has a value in $2.
+function require_value() {
+  if [[ $# -lt 2 || $2 == -* ]]; then
+    echo "git-clone-gh: option '$1' requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
 }
 
 user=""
@@ -82,18 +91,23 @@ access_token=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     -u | --user)
+      require_value "$@"
       user=$2
       shift 2
       ;;
     -o | --org)
+      require_value "$@"
       org=$2
       shift 2
       ;;
     -i | --identity-file)
+      require_value "$@"
       identity_file=$2
       shift 2
       ;;
     -e | --exclude)
+      # A pattern may start with '-', so only check that one is present.
+      [[ $# -ge 2 ]] || require_value "$1"
       exclude_patterns+=("$2")
       shift 2
       ;;
@@ -111,9 +125,13 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
+      if [ -n "${access_token}" ]; then
+        echo "git-clone-gh: extra argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
       access_token="$1"
       shift
-      break
       ;;
   esac
 done
@@ -138,6 +156,8 @@ fi
 
 eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
+# The agent holds the decrypted key, so stop it on every exit path.
+trap 'ssh-agent -k >/dev/null 2>&1' EXIT
 
 # Test SSH connection to GitHub.
 ssh_output=$(ssh -T git@github.com 2>&1)
@@ -158,7 +178,7 @@ if [ -n "${user}" ]; then
   # /user/repos ignores ${user} and always returns the token owner's repos, so
   # verify the token belongs to the requested user before cloning.
   authenticated_user=$(curl -L --silent \
-    --header "Authorization: Token ${access_token}" \
+    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
     "https://api.github.com/user" | jq -r '.login // empty')
   if [ -z "${authenticated_user}" ]; then
     echo "git-clone-gh: could not authenticate with the provided token" >&2
@@ -175,7 +195,7 @@ elif [ -n "${org}" ]; then
   # Authenticate the lookup. An anonymous request shares a 60/hour limit per
   # IP, so back-to-back runs would report a 403 as a missing organization.
   status=$(curl -L --silent --output /dev/null --write-out "%{http_code}" -X GET \
-    --header "Authorization: Token ${access_token}" \
+    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
     "https://api.github.com/orgs/${org}")
   if [ "${status}" -eq 404 ]; then
     echo "git-clone-gh: GitHub organization does not exist" >&2
@@ -186,15 +206,13 @@ elif [ -n "${org}" ]; then
   fi
   # Check if resource is protected by organization SAML enforcement.
   status=$(curl -L --silent --output /dev/null --write-out "%{http_code}" -X GET \
-    --header "Authorization: Token ${access_token}" \
+    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
     "https://api.github.com/${resource}")
   if [ "${status}" -eq 403 ]; then
     echo "git-clone-gh: resource protected by organization SAML enforcement" >&2
     echo "git-clone-gh: grant your personal access token access to this organization" >&2
     exit 1
   fi
-else
-  exit 1
 fi
 
 # Build jq filter based on --skip-archived option.
@@ -210,7 +228,7 @@ page=1
 ssh_urls=()
 while true; do
   response=$(curl -L --silent -X GET \
-    --header "Authorization: Token ${access_token}" \
+    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
     "https://api.github.com/${resource}?${list_params}&page=${page}")
 
   # If the response is not an array, GitHub returned an error object.
@@ -220,11 +238,11 @@ while true; do
     exit 1
   fi
 
-  mapfile -t urls < <(echo "${response}" | jq -r "${jq_filter}")
-  # Check if the array is empty or contains only an empty string.
-  if [ ${#urls[@]} -eq 0 ] || [ -z "${urls[0]}" ]; then
+  # Stop on an empty page, not on a page whose repos the filter removed.
+  if echo "${response}" | jq -e 'length == 0' >/dev/null; then
     break
   fi
+  mapfile -t urls < <(echo "${response}" | jq -r "${jq_filter}")
   ssh_urls+=("${urls[@]}")
   ((page++))
 done
@@ -233,15 +251,17 @@ filtered=("${ssh_urls[@]}")
 
 if ((${#exclude_patterns[@]} > 0)); then
   pattern="$(printf '%s\n' "${exclude_patterns[@]}" | paste -sd'|' -)"
-  mapfile -t filtered < <(printf '%s\n' "${ssh_urls[@]}" | grep -v -E "${pattern}")
+  mapfile -t filtered < <(printf '%s\n' "${ssh_urls[@]}" | grep -v -E -e "${pattern}")
 fi
 
 cloned=()
+failed=false
 
 for ssh_url in "${filtered[@]}"; do
   echo Cloning "${ssh_url}"...
-  output=$(git clone "${ssh_url}" 2>&1)
-  if echo "${output}" | grep -qi "already exists"; then
+  if output=$(git clone "${ssh_url}" 2>&1); then
+    cloned+=("$(basename "${ssh_url}" .git)")
+  elif echo "${output}" | grep -qi "already exists"; then
     echo -e "${red}Repository already exists.${reset}"
   elif echo "${output}" | grep -qi "not found"; then
     echo -e "${red}Please make sure you have the correct access rights and the repository exists.${reset}"
@@ -250,7 +270,9 @@ for ssh_url in "${filtered[@]}"; do
     echo "git-clone-gh: use the HTTPS remote with a personal access token, or an SSH key authorized for this organization" >&2
     exit 1
   else
-    cloned+=("$(basename "${ssh_url}" .git)")
+    echo "git-clone-gh: clone of ${ssh_url} failed" >&2
+    echo "${output}" >&2
+    failed=true
   fi
 done
 
@@ -262,5 +284,4 @@ if ((${#cloned[@]} > 0)); then
   done
 fi
 
-# Clean up ssh-agent.
-ssh-agent -k >/dev/null 2>&1
+[ "${failed}" = false ]
