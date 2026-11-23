@@ -106,11 +106,13 @@ fi
 # Configure a single repository.
 function do_config() {
   git config user.name "${user_name}" &&
-    git config user.email "${user_email}"
-  old_url="$(git remote get-url origin)"
-  new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/")
-  git remote set-url origin "${new_url}"
+    git config user.email "${user_email}" &&
+    old_url="$(git remote get-url origin)" &&
+    new_url=$(echo "${old_url}" | gsed -E "s/@(.*):/@${host}:/") &&
+    git remote set-url origin "${new_url}"
 }
+
+failures=0
 
 for d in *; do
   [ -d "${d}" ] || continue
@@ -119,7 +121,7 @@ for d in *; do
   # Bare repository (worktree container).
   if [ "$(git -C "${d}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
     pushd "${d}" >/dev/null || exit
-    do_config
+    do_config || ((failures++))
     popd >/dev/null || exit
     continue
   fi
@@ -131,6 +133,12 @@ for d in *; do
   fi
 
   pushd "${d}" >/dev/null || exit
-  do_config
+  do_config || ((failures++))
   popd >/dev/null || exit
 done
+
+# Propagate failures so callers can report them.
+if ((failures > 0)); then
+  echo "git-config-all: ${failures} repositories not configured" >&2
+  exit 1
+fi
