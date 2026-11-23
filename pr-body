@@ -8,10 +8,10 @@
 #
 #   The buffer lives in the worktree's own gitdir, which in a worktree layout
 #   sits outside the checkout, so it is never committable and each worktree
-#   keeps its own. A pristine copy of what GitHub returned sits beside it.
-#   That copy is what makes an unchanged body skip the push, and what catches
-#   an edit someone else made while the buffer was open: without it, a push
-#   silently overwrites them.
+#   keeps its own for each pull request. A pristine copy of what GitHub
+#   returned sits beside it. That copy is what makes an unchanged body skip
+#   the push, and what catches an edit someone else made while the buffer was
+#   open: without it, a push silently overwrites them.
 #
 #   `--check` adds a spelling and fact check before the push. Spelling errors
 #   are fixed in the buffer and reported, and the diff shown at the push prompt
@@ -78,7 +78,7 @@ function lint() {
   local file=$1 number=$2 repo=$3 payload
   payload=$(
     python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))' \
-      "gh pr edit ${number} --repo ${repo} --body-file ${file}"
+      "gh pr edit ${number} --repo ${repo} --body-file \"${file}\""
   ) || return 1
   printf '%s\n' "${payload}" | python3 "${HOME}/.claude/hooks/lint-outbound.py" || return 1
   if [[ -n ${PR_BODY_DEEP_LINT} ]]; then
@@ -93,9 +93,10 @@ function lint() {
 
 # Fix spelling in the buffer and fact-check it against the pull request's diff.
 #
-# Returns 1 when something blocks the push (a contradicted claim, or a spelling
-# fix that could not be placed unambiguously) and 2 when the check itself
-# failed. The call runs from the temp directory with settings and MCP servers
+# Returns 3 when something blocks the push (a contradicted claim, or a spelling
+# fix that could not be placed unambiguously) and any other nonzero status when
+# the check itself failed, including an uncaught Python exception, which exits
+# 1. The call runs from the temp directory with settings and MCP servers
 # off, which keeps its fixed overhead near 1K tokens instead of 390K.
 function check() {
   python3 -u - "$@" <<'PY'
@@ -202,6 +203,8 @@ try:
     )
 except subprocess.TimeoutExpired:
     fail("the check timed out")
+except OSError as e:
+    fail(f"could not run claude: {e}")
 if result.returncode:
     fail(f"claude exited {result.returncode}: {result.stderr.strip()[:300]}")
 try:
@@ -241,7 +244,7 @@ if facts:
         print(f"    {f.get('problem', '')}", file=sys.stderr)
 if not (fixed or unplaced or facts):
     print("pr-body: spelling and facts clean")
-sys.exit(1 if unplaced or facts else 0)
+sys.exit(3 if unplaced or facts else 0)
 PY
 }
 
@@ -286,16 +289,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
-  echo "pr-body: not a Git repository" >&2
-  exit 1
-}
-
 # `url` is read so every later call can name the repo explicitly. Resolving the
 # target once and then passing a bare number makes every subsequent call
 # resolve against the current directory instead, which fails whenever the
 # argument was a URL for some other repository.
-meta=$(gh pr view "${target[@]}" --json number,title,url --jq '[.number, .title, .url] | @tsv' 2>/dev/null) || {
+meta=$(gh pr view "${target[@]}" --json number,title,url --jq '[.number, .title, .url] | @tsv') || {
   echo "pr-body: no pull request found; pass a number or URL" >&2
   exit 1
 }
@@ -303,9 +301,27 @@ IFS=$'\t' read -r number title url <<<"${meta}"
 repo=${url#https://github.com/}
 repo=${repo%/pull/*}
 
-file="${gitdir}/pr-body.md"
-remote="${gitdir}/pr-body.remote.md"
-fetched="${gitdir}/pr-body.fetched.md"
+# `--show` only reads, so it works outside a Git repository.
+if [[ ${mode} == show ]]; then
+  body=$(gh pr view "${number}" --repo "${repo}" --json body \
+    --template '{{.body}}') || exit 1
+  if command -v bat >/dev/null; then
+    printf '%s\n' "${body}" | bat --style=plain --language=md --paging=never
+  else
+    printf '%s\n' "${body}"
+  fi
+  exit 0
+fi
+
+gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
+  echo "pr-body: not a Git repository" >&2
+  exit 1
+}
+
+base="${gitdir}/pr-body.${repo//\//.}.${number}"
+file="${base}.md"
+remote="${base}.remote.md"
+fetched="${base}.fetched.md"
 
 # `--template` writes the body's exact bytes; `--jq` appends a newline.
 function fetch_body() {
@@ -319,16 +335,6 @@ function same() {
 }
 
 fetch_body "${fetched}" || exit 1
-
-if [[ ${mode} == show ]]; then
-  if command -v bat >/dev/null; then
-    bat --style=plain --language=md --paging=never "${fetched}"
-  else
-    cat "${fetched}"
-  fi
-  rm -f "${fetched}"
-  exit 0
-fi
 
 # The buffer predates a change made on GitHub, so pushing it would discard
 # that change. A buffer with no local edits simply takes GitHub's version;
@@ -380,7 +386,7 @@ if [[ -n ${run_check} ]]; then
   check "${file}" "${number}" "${repo}" "${title}" "${check_model}"
   case $? in
     0) ;;
-    1)
+    3)
       echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
       echo "pr-body: rerun without --check to push it anyway" >&2
       exit 1
@@ -410,7 +416,7 @@ if [[ -z ${PR_BODY_ASSUME_YES} ]]; then
     exit 1
   fi
   if ! confirm "push this description to #${number}?"; then
-    echo "pr-body: #${number} not pushed; the buffer is kept at ${file}"
+    echo "pr-body: #${number} not pushed; the buffer is kept at ${file}" >&2
     exit 1
   fi
 fi
