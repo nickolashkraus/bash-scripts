@@ -47,9 +47,13 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
+      if [ -n "${dir}" ]; then
+        echo "git-remote-v: extra argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
       dir="$1"
       shift
-      break
       ;;
   esac
 done
@@ -57,8 +61,8 @@ done
 if [ -z "${dir}" ]; then
   dir="$(pwd)"
 else
-  if [ ! -e "${dir}" ]; then
-    echo "git-remote-v: ${dir} does not exist" >&2
+  if [ ! -d "${dir}" ]; then
+    echo "git-remote-v: ${dir} is not a directory" >&2
     exit 1
   fi
 fi
