@@ -110,7 +110,7 @@ gitdir=$(git rev-parse --git-dir 2>/dev/null) || {
 
 # The owner and repo come from the pull request's URL rather than the current
 # directory, so a URL for some other repository lists that repository's threads.
-meta=$(gh pr view "${target[@]}" --json number,url --jq '[.number, .url] | @tsv' 2>/dev/null) || {
+meta=$(gh pr view "${target[@]}" --json number,url --jq '[.number, .url] | @tsv') || {
   echo "pr-threads: no pull request found; pass a number or URL" >&2
   exit 1
 }
@@ -128,9 +128,11 @@ if [[ -z ${me} ]]; then
 fi
 
 if [[ ${mode} == list || ${mode} == list_all ]]; then
-  # The `$` names are GraphQL variables, not shell ones.
+  # The `$` names are GraphQL variables, not shell ones. `-F` would send an
+  # all-digit owner or repo as a number. The listing is written aside, so
+  # a failed one keeps the numbers last printed.
   # shellcheck disable=SC2016
-  gh api graphql -F owner="${owner}" -F repo="${repo}" -F pr="${number}" -f query='
+  gh api graphql -f owner="${owner}" -f repo="${repo}" -F pr="${number}" -f query='
     query($owner:String!, $repo:String!, $pr:Int!) {
       repository(owner:$owner, name:$repo) { pullRequest(number:$pr) {
         reviewThreads(first:100) { nodes {
@@ -144,7 +146,11 @@ if [[ ${mode} == list || ${mode} == list_all ]]; then
             ((.comments.nodes[0].body | split("\n")
                | map(select(length > 0 and (startswith("<!--") | not)))
                | (map(select(startswith("**"))) + .) | .[0]) // "")
-          ] | @tsv' >"${cache}" || exit 1
+          ] | @tsv' >"${cache}.tmp" || {
+    rm -f "${cache}.tmp"
+    exit 1
+  }
+  mv -f "${cache}.tmp" "${cache}" || exit 1
 
   MODE=${mode} ME=${me} python3 - "${cache}" <<'PY'
 import os, sys
@@ -171,7 +177,7 @@ for i, r in enumerate(rows, 1):
     print(f"{i:>3}  {flags:<22}  {author:<12}  {where}")
     print(f"     {title}")
 if not shown:
-    print("No unresolved threads." if not show_all else "No threads.")
+    print("pr-threads: no unresolved threads" if not show_all else "pr-threads: no threads")
 PY
   exit 0
 fi
@@ -181,8 +187,13 @@ fi
   exit 1
 }
 
+# `all` and `replied` select only the threads the mutation would change.
 mutation="resolveReviewThread"
-[[ ${mode} == unresolve ]] && mutation="unresolveReviewThread"
+before=false
+if [[ ${mode} == unresolve ]]; then
+  mutation="unresolveReviewThread"
+  before=true
+fi
 
 ids=()
 labels=()
@@ -192,10 +203,10 @@ while IFS=$'\t' read -r tid resolved _outdated tpath tline _tauthor tparts _ttit
   want=0
   case ${selector} in
     all)
-      [[ ${resolved} == false ]] && want=1
+      [[ ${resolved} == "${before}" ]] && want=1
       ;;
     replied)
-      [[ ${resolved} == false ]] || continue
+      [[ ${resolved} == "${before}" ]] || continue
       # The first comment is the bot's; a later one from you is the answer.
       [[ ",${tparts}," == *",${me},"* && ${tparts%%,*} != "${me}" ]] && want=1
       ;;
