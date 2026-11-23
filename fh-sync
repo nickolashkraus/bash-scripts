@@ -5,12 +5,18 @@
 #   organization.
 #
 #   Runs the following in sequence:
-#     1. git-clone-gh --org <org> $FH_GITHUB_TOKEN
+#     1. git-clone-gh --org <org> [--exclude PATTERN ...], with FH_GITHUB_TOKEN
+#        passed as GITHUB_API_TOKEN
 #     2. git-config-all 'Nickolas Kraus' nickolas.kraus@functionhealth.com github.com
 #     3. git-pull
 #
 #   The script validates that FH_GITHUB_TOKEN is set and that the current
-#   directory matches ~/<org> before proceeding.
+#   directory matches ~/<org> before proceeding. Every step runs even if an
+#   earlier one fails, and the script exits nonzero if any step failed.
+#
+#   Files:
+#     ~/<org>/.fh-sync-exclude    Repository names not to clone, one per line;
+#                                 text after # is ignored
 #
 # USAGE
 #   fh-sync [OPTIONS] ORG
@@ -43,6 +49,9 @@ function usage() {
   echo ""
   echo "Options:"
   echo "  -h, --help    Show this help message"
+  echo ""
+  echo "Files:"
+  echo "  ~/<org>/.fh-sync-exclude    Repository names not to clone, one per line"
   echo ""
 }
 
@@ -112,7 +121,7 @@ fi
 exclude_args=()
 exclude_file="${expected}/.fh-sync-exclude"
 if [ -f "${exclude_file}" ]; then
-  while IFS= read -r line; do
+  while IFS= read -r line || [ -n "${line}" ]; do
     line="${line%%#*}"
     line="$(echo "${line}" | xargs)"
     [ -z "${line}" ] && continue
@@ -120,13 +129,19 @@ if [ -f "${exclude_file}" ]; then
   done <"${exclude_file}"
 fi
 
+# One repository that fails to clone or configure must not skip every pull.
+status=0
+
 echo -e "${green}Cloning repositories...${reset}"
-git-clone-gh --org "${org}" "${exclude_args[@]}" "${FH_GITHUB_TOKEN}" || exit 1
+# Pass the token in the environment, since any local user can read argv.
+GITHUB_API_TOKEN="${FH_GITHUB_TOKEN}" git-clone-gh --org "${org}" "${exclude_args[@]}" || status=1
 
 echo ""
 echo -e "${green}Configuring repositories...${reset}"
-git-config-all 'Nickolas Kraus' nickolas.kraus@functionhealth.com github.com || exit 1
+git-config-all 'Nickolas Kraus' nickolas.kraus@functionhealth.com github.com || status=1
 
 echo ""
 echo -e "${green}Pulling repositories...${reset}"
-git-pull
+git-pull || status=1
+
+exit "${status}"
