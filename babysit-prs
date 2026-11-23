@@ -2,7 +2,7 @@
 #
 # DESCRIPTION
 #   Approve every open pull request in a repository whose review threads are
-#   all resolved.
+#   all resolved. Drafts and pull requests you already approved are skipped.
 #
 #   Only the first 100 review threads of each pull request are read.
 #
@@ -72,15 +72,36 @@ if [[ -n "${author}" ]]; then
   author_flag=(--author "${author}")
 fi
 
+me=$(gh api user --jq .login)
+if [[ -z "${me}" ]]; then
+  echo "babysit-prs: could not read your GitHub login" >&2
+  exit 1
+fi
+
+# `gh pr list` stops at 30 unless told otherwise. A GitHub login holds only
+# letters, digits and hyphens, so it is safe inside the jq string.
 prs=$(gh pr list --repo "${repo}" --state open "${author_flag[@]}" \
-  --json number --jq '.[].number')
+  --limit 1000 --json number,isDraft,latestReviews \
+  --jq ".[] | [.number, .isDraft,
+    any((.latestReviews // [])[];
+      .author.login == \"${me}\" and .state == \"APPROVED\")] | @tsv")
 
 if [[ -z "${prs}" ]]; then
   echo "babysit-prs: no open pull requests"
   exit 0
 fi
 
-while read -r pr; do
+failed=0
+while IFS=$'\t' read -r pr draft approved; do
+  if [[ "${draft}" == true ]]; then
+    echo "babysit-prs: #${pr} is a draft"
+    continue
+  fi
+  if [[ "${approved}" == true ]]; then
+    echo "babysit-prs: #${pr} already has your approval"
+    continue
+  fi
+
   # The `$` names are GraphQL variables, not shell ones.
   # shellcheck disable=SC2016
   unresolved=$(gh api graphql -f query='
@@ -97,8 +118,13 @@ while read -r pr; do
 
   if [[ "${unresolved}" -eq 0 ]]; then
     echo "babysit-prs: approving #${pr}"
-    gh pr review "${pr}" --repo "${repo}" --approve
+    if ! gh pr review "${pr}" --repo "${repo}" --approve; then
+      echo "babysit-prs: could not approve #${pr}" >&2
+      failed=1
+    fi
   else
     echo "babysit-prs: #${pr} has ${unresolved} unresolved thread(s)"
   fi
 done <<<"${prs}"
+
+exit "${failed}"
