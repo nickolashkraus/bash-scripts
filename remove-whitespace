@@ -2,7 +2,7 @@
 #
 # DESCRIPTION
 #   Remove trailing whitespace from every file in a given directory.
-#   Excludes PNGs and files in .git/.
+#   Excludes binary files, Git metadata, node_modules/ and .venv/.
 #
 # USAGE
 #   remove-whitespace [OPTIONS] [DIR]
@@ -65,14 +65,30 @@ if ! [ -x "$(command -v gsed)" ]; then
 fi
 
 function remove_whitespace() {
-  find . -type f \
+  local failed
+  # Skip Git metadata: a .git directory, a worktree's .git file and any bare
+  # repository (a directory with HEAD, objects and refs). find ignores the
+  # exit status of -exec ... \;, so print the files gsed fails on and fail
+  # when there are any.
+  failed=$(find . \
+    \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+    -type d -exec test -f {}/HEAD -a -d {}/objects -a -d {}/refs \; -prune -o \
+    -type f \
     -name "*" \
     -not -name "*.png" \
-    -not -path "./.git/*" \
-    -not -path "./node_modules/*" \
-    -exec gsed -i 's/[[:space:]]\+$//' {} \;
+    -exec grep -Iq . {} \; \
+    ! -exec gsed -i 's/[[:space:]]\+$//' {} \; \
+    -print) || return
+  [ -z "${failed}" ]
 }
+
+if [ -f "${dir}/HEAD" ] && [ -d "${dir}/objects" ] && [ -d "${dir}/refs" ]; then
+  echo "remove-whitespace: ${dir} is a Git directory" >&2
+  exit 1
+fi
 
 pushd "${dir}" >/dev/null || exit
 remove_whitespace
+status=$?
 popd >/dev/null || exit
+exit "${status}"
