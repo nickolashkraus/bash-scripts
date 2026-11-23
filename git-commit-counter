@@ -21,7 +21,7 @@
 # EXAMPLES
 #   git-commit-counter --user 0x@nickolaskraus.io -n 100
 
-user=""      # Commit author email. Defaults to the email set via global options.
+user=""      # Commit author email. Defaults to `git config user.email`.
 scan_dir="." # Directory to scan. Defaults to the current directory.
 top_n=10     # Top N most active repositories. Defaults to 10.
 verbose=true # Set to false to only show summary results.
@@ -59,22 +59,40 @@ function usage() {
   echo ""
 }
 
+# Exit unless the option in $1 has a value in $2.
+function require_value() {
+  if [[ $# -lt 2 || $2 == -* ]]; then
+    echo "git-commit-counter: option '$1' requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
     -u | --user)
+      require_value "$@"
       user=$2
       shift 2
       ;;
     -d | --directory)
+      require_value "$@"
       scan_dir=$2
       shift 2
       ;;
     -n | --top-n)
+      require_value "$@"
+      if ! [[ $2 =~ ^[0-9]+$ ]]; then
+        echo "git-commit-counter: option '$1' requires a number" >&2
+        exit 1
+      fi
       top_n=$2
       shift 2
       ;;
     -e | --exclude)
+      # A pattern may start with '-', so only check that one is present.
+      [[ $# -ge 2 ]] || require_value "$1"
       exclude_patterns+=("$2")
       shift 2
       ;;
@@ -136,6 +154,7 @@ total_commits=0
 repos_with_commits=0
 max_commits=0
 max_commits_repo=""
+seen_repos=$'\n'
 
 # Create temporary files.
 repo_data_file=$(mktemp)
@@ -151,7 +170,7 @@ find "${scan_dir}" -type f -name ".git" >>"${repo_data_file}"
 cat "${repo_data_file}" >"${filtered_repos}"
 for pattern in "${exclude_patterns[@]}"; do
   if [ -n "${pattern}" ]; then
-    grep -v "${pattern}" "${filtered_repos}" >"${filtered_repos}.tmp" || true
+    grep -v -e "${pattern}" "${filtered_repos}" >"${filtered_repos}.tmp" || true
     mv "${filtered_repos}.tmp" "${filtered_repos}"
   fi
 done
@@ -159,18 +178,29 @@ done
 # Process each repository.
 while read -r gitdir; do
   repo_dir="${gitdir%/.git}"
-  repo_name=$(basename "${repo_dir}")
 
   # Skip if not a valid Git repository.
   if ! git -C "${repo_dir}" rev-parse --git-dir >/dev/null 2>&1; then
     continue
   fi
 
+  # Name a worktree after its repository, not its directory, and count each
+  # repository once.
+  common_dir=$(git -C "${repo_dir}" rev-parse --path-format=absolute --git-common-dir)
+  if [[ ${seen_repos} == *$'\n'"${common_dir}"$'\n'* ]]; then
+    continue
+  fi
+  seen_repos+="${common_dir}"$'\n'
+  repo_name=$(basename "${common_dir%/.git}")
+
   # Navigate to Git repository directory.
   cd "${repo_dir}" || continue
 
-  # Count commits by the specified user.
-  commit_count=$(git log --author="${user}" --oneline | wc -l)
+  # Count commits by the specified user that are reachable from the HEAD of any
+  # of the repository's worktrees, so a commit two worktrees share counts once.
+  read -r -a heads <<<"$(git worktree list --porcelain |
+    sed -n 's/^HEAD //p' | grep -v '^0*$' | tr '\n' ' ')"
+  commit_count=$(git log -F --author="<${user}>" --oneline "${heads[@]}" | wc -l)
 
   # Trim whitespace from commit count.
   commit_count=$(echo "${commit_count}" | tr -d '[:space:]')
@@ -229,7 +259,7 @@ if [ "${total_repos}" -gt 0 ]; then
     rest="${line#*:}"
     commit_count="${rest%%:*}"
     repo_path="${rest#*:}"
-    echo "${commit_count} ${repo_name} ${repo_path}" >>"${sorted_file}"
+    printf '%s\t%s\t%s\n' "${commit_count}" "${repo_name}" "${repo_path}" >>"${sorted_file}"
   done <"${results_file}"
 
   # Sort results.
@@ -240,11 +270,7 @@ if [ "${total_repos}" -gt 0 ]; then
   echo -e "${blue}Top ${top_n} repositories by commit count:${reset}"
 
   # Display top N results.
-  head -n "${top_n}" "${sorted_file}" | while read -r line; do
-    count=$(echo "${line}" | cut -d' ' -f1 | tr -d '[:space:]')
-    repo=$(echo "${line}" | cut -d' ' -f2 | tr -d '[:space:]')
-    path=$(echo "${line}" | cut -d' ' -f3- | sed 's/^ *//')
-
+  head -n "${top_n}" "${sorted_file}" | while IFS=$'\t' read -r count repo path; do
     if [ "${count}" -gt 0 ]; then
       # Show repository name and path if they differ significantly.
       if [[ "${path}" == *"${repo}"* ]]; then
