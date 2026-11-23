@@ -185,11 +185,14 @@ function clean_keep() {
     i=$((i + 1))
   done
 
-  # If `last` is now dangling, repoint to the newest remaining snapshot.
+  # If `last` is now dangling, repoint to the newest remaining snapshot, or
+  # remove it when none remain.
   if [ "${dry_run}" = "false" ] && [ -L "${resurrect_dir}/last" ]; then
     local last_target
     last_target="$(resolve_last)"
-    if [ -z "${last_target}" ]; then
+    if [ -z "${last_target}" ] && [ "${n}" -eq 0 ]; then
+      remove "${resurrect_dir}/last"
+    elif [ -z "${last_target}" ]; then
       local newest="${sorted[0]}"
       echo "Repointing \`last\` -> $(basename "${newest}")"
       ln -sfn "$(basename "${newest}")" "${resurrect_dir}/last"
