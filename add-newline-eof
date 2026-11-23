@@ -2,7 +2,7 @@
 #
 # DESCRIPTION
 #   Add a newline EOF to every file in a given directory.
-#   Excludes PNGs and files in .git/.
+#   Excludes binary files, Git metadata, node_modules/ and .venv/.
 #
 # USAGE
 #   add-newline-eof [OPTIONS] [DIR]
@@ -65,17 +65,33 @@ if ! [ -x "$(command -v gsed)" ]; then
 fi
 
 function add_newline_eof() {
-  # The sed script is literal: `$a\` appends nothing after the last line,
-  # which ends it with a newline when one is missing.
+  local failed
+  # Skip Git metadata: a .git directory, a worktree's .git file and any bare
+  # repository (a directory with HEAD, objects and refs). The sed script is
+  # literal: `$a\` appends nothing after the last line, which ends it with a
+  # newline when one is missing. find ignores the exit status of
+  # -exec ... \;, so print the files gsed fails on and fail when there are
+  # any.
   # shellcheck disable=SC1003,SC2016
-  find . -type f \
+  failed=$(find . \
+    \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+    -type d -exec test -f {}/HEAD -a -d {}/objects -a -d {}/refs \; -prune -o \
+    -type f \
     -name "*" \
     -not -name "*.png" \
-    -not -path "**/.git/*" \
-    -not -path "**/node_modules/*" \
-    -exec gsed -i '$a\' {} \;
+    -exec grep -Iq . {} \; \
+    ! -exec gsed -i '$a\' {} \; \
+    -print) || return
+  [ -z "${failed}" ]
 }
+
+if [ -f "${dir}/HEAD" ] && [ -d "${dir}/objects" ] && [ -d "${dir}/refs" ]; then
+  echo "add-newline-eof: ${dir} is a Git directory" >&2
+  exit 1
+fi
 
 pushd "${dir}" >/dev/null || exit
 add_newline_eof
+status=$?
 popd >/dev/null || exit
+exit "${status}"
