@@ -55,6 +55,22 @@ if [ -z "${app}" ]; then
   exit 1
 fi
 
+if [[ $# -gt 0 ]]; then
+  echo "yabai-cycle: unknown argument '$1'" >&2
+  usage >&2
+  exit 1
+fi
+
+if ! [ -x "$(command -v yabai)" ]; then
+  echo "yabai-cycle: yabai is not installed" >&2
+  exit 1
+fi
+
+if ! [ -x "$(command -v jq)" ]; then
+  echo "yabai-cycle: jq is not installed" >&2
+  exit 1
+fi
+
 # Get the ID of the window currently in focus. Otherwise, set to an empty
 # string.
 current=$(yabai -m query --windows --window 2>/dev/null |
@@ -68,8 +84,7 @@ ids=$(yabai -m query --windows 2>/dev/null |
 # If no windows exist, open the application. This covers the case where the app
 # is not running or is running but has no windows.
 if [ -z "${ids}" ]; then
-  open -a "${app}"
-  exit 0
+  exec open -a "${app}"
 fi
 
 if [ -z "${current}" ]; then
