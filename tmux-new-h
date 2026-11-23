@@ -61,12 +61,21 @@ function tmux_new_h() {
   done
   SESSION_NAME="${BASE_NAME}-${i}"
 
+  # Inside tmux, attach-session refuses to nest, so switch to the session.
+  ATTACH="attach-session"
+  if [[ -n "${TMUX:-}" ]]; then
+    ATTACH="switch-client"
+  fi
+
+  # Name the new session in every command: inside tmux, a command without
+  # -t acts on the current client's window, not the new session. "S:" is
+  # the session's current window and "S:.N" is pane N in it.
   tmux new-session -d -s "${SESSION_NAME}" \; \
-    split-window -h \; \
-    split-window -v \; \
-    select-layout '8a4f,553x140,0,0{276x140,0,0,12,276x140,277,0[276x70,277,0,13,276x69,277,71,14]}' \; \
-    select-pane -t 0 \; \
-    attach-session -t "${SESSION_NAME}"
+    split-window -h -t "${SESSION_NAME}:" \; \
+    split-window -v -t "${SESSION_NAME}:" \; \
+    select-layout -t "${SESSION_NAME}:" '8a4f,553x140,0,0{276x140,0,0,12,276x140,277,0[276x70,277,0,13,276x69,277,71,14]}' \; \
+    select-pane -t "${SESSION_NAME}:.0" \; \
+    "${ATTACH}" -t "${SESSION_NAME}"
 }
 
 tmux_new_h
