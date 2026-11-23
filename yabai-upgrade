@@ -49,10 +49,20 @@ done
 echo "Stopping yabai..."
 yabai --stop-service
 
+# brew refuses to upgrade a pinned formula even by name, so unpin it for the
+# upgrade and pin it again after, whether or not the upgrade succeeded.
 echo "Upgrading yabai..."
+brew unpin yabai
 HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade yabai
+status=$?
+brew pin yabai
 
 echo "Starting yabai..."
 yabai --start-service
+
+if [ "${status}" -ne 0 ]; then
+  echo "yabai-upgrade: brew upgrade yabai failed" >&2
+  exit "${status}"
+fi
 
 echo "Done."
