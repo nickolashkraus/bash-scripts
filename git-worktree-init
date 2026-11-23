@@ -5,8 +5,15 @@
 #   default branch. This enables the bare-clone container pattern where each
 #   branch is a peer worktree directory.
 #
+#   The original clone is deleted unless it holds something the conversion
+#   does not copy: ignored files, stash entries, local tags, hooks, local
+#   config, linked worktrees, submodules, LFS objects or .git/info/exclude
+#   patterns. Then it is kept beside the new layout as REPO-worktree-tmp-PID
+#   and the script lists what it holds. A local user.name and user.email are
+#   copied to the bare repository, so they do not count.
+#
 # USAGE
-#   git-worktree-init [OPTIONS] <repo>
+#   git-worktree-init [OPTIONS] REPO
 #
 # ARGUMENTS
 #   REPO    Path to the Git repository to convert
@@ -24,7 +31,7 @@ reset='\033[0m'
 
 # Print usage information.
 function usage() {
-  echo "usage: git-worktree-init [OPTIONS] <repo>"
+  echo "usage: git-worktree-init [OPTIONS] REPO"
   echo ""
   echo "Arguments:"
   echo "  REPO    Path to the Git repository to convert"
@@ -73,6 +80,8 @@ fi
 if [ ! -d "${repo}/.git" ]; then
   if [ "$(git -C "${repo}" rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
     echo "git-worktree-init: ${repo} is already a bare repository" >&2
+  elif [ -f "${repo}/.git" ]; then
+    echo "git-worktree-init: ${repo} is a linked worktree or submodule, not a clone" >&2
   else
     echo "git-worktree-init: ${repo} is not a Git repository" >&2
   fi
@@ -121,7 +130,10 @@ cd "${repo_parent}" || exit 1
 
 # Move existing clone to a temporary location.
 tmp="${repo_name}-worktree-tmp-$$"
-mv "${repo_name}" "${tmp}"
+if ! mv "${repo_name}" "${tmp}"; then
+  echo "git-worktree-init: cannot move ${repo_name} aside" >&2
+  exit 1
+fi
 
 # Clone as a bare repository.
 if ! git clone --bare "${remote_url}" "${repo_name}"; then
@@ -133,19 +145,86 @@ fi
 
 cd "${repo_name}" || exit 1
 
+# Replace the bare clone with the original and exit.
+function restore() {
+  echo "git-worktree-init: $1; restoring the original" >&2
+  cd "${repo_parent}" || exit 1
+  rm -rf "${repo_name}"
+  mv "${tmp}" "${repo_name}" ||
+    echo "git-worktree-init: the original is at ${repo_parent}/${tmp}" >&2
+  exit 1
+}
+
 # Fix the fetch refspec for worktree compatibility. By default, bare clones
 # map remote branches to local refs. This restores the standard remote
 # tracking layout so that git pull works inside worktrees.
 git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
-git fetch origin >/dev/null 2>&1
+git fetch origin >/dev/null 2>&1 || restore "fetch failed"
 
 # Add a worktree for the default branch and set up tracking.
-git worktree add "${default_branch}" "${default_branch}" >/dev/null 2>&1
-git -C "${default_branch}" branch -u "origin/${default_branch}" >/dev/null 2>&1
+git worktree add "${default_branch}" "${default_branch}" >/dev/null 2>&1 ||
+  restore "cannot add the '${default_branch}' worktree"
+git -C "${default_branch}" branch -u "origin/${default_branch}" >/dev/null 2>&1 ||
+  restore "cannot set the upstream of '${default_branch}'"
 
-cd "${repo_parent}" || exit 1
+orig="${repo_parent}/${tmp}"
+new="${repo_parent}/${repo_name}"
 
-# Clean up the temporary clone.
-rm -rf "${tmp}"
+# Every worktree shares the bare repository's config, so give it the identity
+# set on the original (git-config-all sets one on every clone it visits).
+for key in user.name user.email; do
+  value=$(git -C "${orig}" config --local --get "${key}") &&
+    git config "${key}" "${value}"
+done
+
+# Print what the original holds that the conversion did not copy, one item
+# per line, or a line naming a check that could not run. Config values are
+# left out, since they can hold credentials.
+function held() (
+  set -o pipefail
+  cd "${orig}" || {
+    echo "unchecked: ${orig}"
+    exit
+  }
+  git status --porcelain --ignored | sed -n 's/^!! /ignored: /p' ||
+    echo "unchecked: ignored files"
+  git stash list | sed 's/^/stash: /' || echo "unchecked: stash"
+  git for-each-ref --format='%(refname) %(objectname)' refs/tags |
+    while read -r ref sha; do
+      [ "$(git -C "${new}" rev-parse -q --verify "${ref}")" = "${sha}" ] ||
+        echo "tag: ${ref#refs/tags/}"
+    done || echo "unchecked: tags"
+  if [ -d .git/hooks ]; then
+    find .git/hooks -type f ! -name '*.sample' | sed 's#.*/#hook: #' ||
+      echo "unchecked: hooks"
+  fi
+  # The first entry is the original clone itself.
+  git worktree list --porcelain | sed -n '1d; s/^worktree /worktree: /p' ||
+    echo "unchecked: worktrees"
+  { [ -s .gitmodules ] || [ -n "$(ls -A .git/modules 2>/dev/null)" ]; } &&
+    echo "submodules: .gitmodules or .git/modules"
+  [ -n "$(find .git/lfs -type f 2>/dev/null)" ] && echo "lfs: .git/lfs"
+  grep -qv '^#\|^[[:space:]]*$' .git/info/exclude 2>/dev/null &&
+    echo "exclude: .git/info/exclude"
+  # core.bare and core.logallrefupdates differ only because the new repository
+  # is bare, branch tracking is set up again in each worktree, and submodule
+  # settings are reported with the submodules above.
+  git config --local --list |
+    sed -E '/^(core\.(bare|logallrefupdates)|branch\..*\.(remote|merge)|submodule\..*)=/d' |
+    while IFS= read -r line; do
+      git -C "${new}" config --local --list | grep -qxF -- "${line}" ||
+        echo "config: ${line%%=*}"
+    done || echo "unchecked: config"
+)
 
 echo -e "${green}Converted ${repo_name} to bare clone with '${default_branch}' worktree.${reset}"
+
+left=$(held)
+if [ -z "${left}" ]; then
+  rm -rf "${orig}"
+else
+  echo "git-worktree-init: kept the original clone at ${orig}, which holds what the conversion did not copy:" >&2
+  while IFS= read -r line; do
+    echo "  ${line}" >&2
+  done <<<"${left}"
+fi
