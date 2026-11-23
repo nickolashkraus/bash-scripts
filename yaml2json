@@ -60,7 +60,10 @@ if [ ! -e "${file}" ]; then
   exit 1
 fi
 
-filename=$(echo "${file}" | cut -f 1 -d '.')
+filename="${file}"
+if [[ ${file##*/} == *.* ]]; then
+  filename="${file%.*}"
+fi
 
 python_script=$(
   cat <<END
@@ -73,4 +76,12 @@ json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)
 END
 )
 
-python -c "${python_script}" <"${file}" >"${filename}.json"
+if ! python -c 'import yaml' 2>/dev/null; then
+  echo "yaml2json: PyYAML is not installed" >&2
+  exit 1
+fi
+
+# Convert before writing, so a failed conversion leaves an existing output
+# file untouched. printf ends the output with a newline.
+output=$(python -c "${python_script}" <"${file}") || exit
+printf '%s\n' "${output}" >"${filename}.json"
