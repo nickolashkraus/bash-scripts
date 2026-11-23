@@ -34,7 +34,7 @@ for arg in "$@"; do
   case "$arg" in
     -n | --dry-run) DRY_RUN=1 ;;
     -h | --help)
-      sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,24p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -55,16 +55,22 @@ run() {
   fi
 }
 
+list_apps() {
+  osascript -e 'tell application "System Events" to get name of (every process whose background only is false)' |
+    tr ',' '\n' |
+    sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
 if [[ "$DRY_RUN" -eq 0 && -z "${SOFT_RESTART_DETACHED:-}" ]]; then
+  # Fail here, where the error is visible, rather than in the detached run.
+  if ! list_apps >/dev/null; then
+    echo "soft-restart: could not list apps" >&2
+    exit 1
+  fi
+
   printf '%b==>%b Priming sudo (needed for purge + DNS flush)\n' \
     "${yellow}" "${reset}"
   sudo -v
-
-  (while true; do
-    sudo -n true
-    sleep 30
-    kill -0 "$$" 2>/dev/null || exit
-  done) 2>/dev/null &
 
   printf '%b==>%b Detaching from terminal so we can quit it\n' \
     "${yellow}" "${reset}"
@@ -74,6 +80,17 @@ if [[ "$DRY_RUN" -eq 0 && -z "${SOFT_RESTART_DETACHED:-}" ]]; then
   SOFT_RESTART_DETACHED=1 nohup "$0" "$@" >"$LOG" 2>&1 &
   disown
   exit 0
+fi
+
+# Refresh the sudo credential every 30 seconds while the detached run quits
+# apps, which can take minutes. $$ is this process, so the loop ends when it
+# does.
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  (while true; do
+    sudo -n true
+    sleep 30
+    kill -0 "$$" 2>/dev/null || exit
+  done) 2>/dev/null &
 fi
 
 KEEP_APPS=(
@@ -95,9 +112,7 @@ vm_stat | sed -n '1,5p'
 echo
 
 echo "==> Quitting GUI applications"
-apps=$(osascript -e 'tell application "System Events" to get name of (every process whose background only is false)' |
-  tr ',' '\n' |
-  sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+apps=$(list_apps)
 
 while IFS= read -r app; do
   [[ -z "$app" ]] && continue
@@ -134,12 +149,12 @@ run "killall cfprefsd"
 
 echo
 echo "==> Flushing DNS"
-run "sudo dscacheutil -flushcache"
-run "sudo killall -HUP mDNSResponder"
+run "sudo -n dscacheutil -flushcache"
+run "sudo -n killall -HUP mDNSResponder"
 
 echo
 echo "==> Purging inactive memory"
-run "sudo purge"
+run "sudo -n purge"
 
 echo
 echo "==> Memory after:"
