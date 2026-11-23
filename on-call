@@ -32,7 +32,8 @@
 # OPTIONS
 #   -n, --dry-run          Log what it would ack; take no action
 #   -1, --once             Poll once and exit
-#   -p, --path <id>        Watch another escalation path (default EP011)
+#   -p, --path <id>        Watch another escalation path by ID, not EP
+#                          reference (default: EP011's ID)
 #   -i, --interval <secs>  Seconds between polls (default 30)
 #   -h, --help             Show this help message
 #
@@ -66,7 +67,8 @@ function usage() {
   echo "Options:"
   echo "  -n, --dry-run          Log what it would ack; take no action"
   echo "  -1, --once             Poll once and exit"
-  echo "  -p, --path <id>        Watch another escalation path (default EP011)"
+  echo "  -p, --path <id>        Watch another escalation path by ID, not EP"
+  echo "                         reference (default: EP011's ID)"
   echo "  -i, --interval <secs>  Seconds between polls (default 30)"
   echo "  -h, --help             Show this help message"
   echo ""
@@ -83,11 +85,20 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -p | --path)
-      path_id="${2:?on-call: --path needs an escalation path ID}"
+      if [[ -z ${2:-} ]]; then
+        echo "on-call: --path needs an escalation path ID" >&2
+        exit 1
+      fi
+      path_id="$2"
       shift 2
       ;;
     -i | --interval)
-      interval="${2:?on-call: --interval needs a number of seconds}"
+      # Anything `sleep` rejects or returns from at once would poll nonstop.
+      if ! [[ ${2:-} =~ ^[1-9][0-9]*$ ]]; then
+        echo "on-call: --interval needs a positive number of seconds" >&2
+        exit 1
+      fi
+      interval="$2"
       shift 2
       ;;
     -h | --help)
@@ -157,8 +168,12 @@ function api() {
   if [ -n "${3:-}" ]; then
     data=(-H "Content-Type: application/json" -d "$3")
   fi
-  if ! out=$(curl -sS -g --max-time 15 -w '\n%{http_code}' -X "$1" \
-    -H "Authorization: Bearer ${key}" ${data[@]+"${data[@]}"} "$2" 2>&1); then
+  # The header goes through a pipe so the key never appears in `ps` or on
+  # disk (bash 3.2 backs a here-string with a temp file), and curl's stdin
+  # is that pipe rather than the poll loop's.
+  if ! out=$(printf 'Authorization: Bearer %s\n' "${key}" |
+    curl -sS -g --max-time 15 -w '\n%{http_code}' -X "$1" -H @- \
+      ${data[@]+"${data[@]}"} "$2" 2>&1); then
     http_code="000"
     body="${out}"
     return 1
@@ -176,7 +191,7 @@ function agent() {
   (
     cd "${AGENT_OS}" &&
       env -u CLAUDE_CONFIG_DIR claude -p --model opus "/on-call $*" \
-        >>"${STATE}/triage.log" 2>&1
+        </dev/null >>"${STATE}/triage.log" 2>&1
   ) &
 }
 
@@ -275,35 +290,44 @@ function handle() {
 }
 
 function poll() {
-  local page query
+  local page query after="" next
   if ! key=$(security find-generic-password -s incident-io \
     -a function-health -w 2>/dev/null); then
     http_code="401"
     fail "no incident.io key in the Keychain"
-    return
+    return 1
   fi
   query="escalation_path[one_of]=${path_id}&status[one_of]=triggered"
   query+="&created_at[gte]=$(date -u -v-1d +%F)&page_size=50"
-  if ! api GET "${API}?${query}"; then
-    fail "list failed (HTTP ${http_code})"
-    return
-  fi
+  while :; do
+    if ! api GET "${API}?${query}${after:+&after=${after}}"; then
+      fail "list failed (HTTP ${http_code})"
+      return 1
+    fi
+    next=$(jq -r '.pagination_meta.after // empty | @uri' <<<"${body}")
+
+    while IFS= read -r page; do
+      handle "${page}"
+    done < <(jq -c --arg me "${ME}" '
+      .escalations[]
+      | . + {paged_at: ([.events[]
+          | select(.event == "notified_users" and any(.users[]?; .id == $me))
+          | .occurred_at] | first)}' <<<"${body}")
+
+    # A cursor that does not advance would page forever.
+    [[ -n ${next} && ${next} != "${after}" ]] || break
+    after=${next}
+  done
+
+  # A poll counts as a success only once every page is read.
   fail_streak=0
   alerted=0
   now >"${STATE}/heartbeat"
-
-  while IFS= read -r page; do
-    handle "${page}"
-  done < <(jq -c --arg me "${ME}" '
-    .escalations[]
-    | . + {paged_at: ([.events[]
-        | select(.event == "notified_users" and any(.users[]?; .id == $me))
-        | .occurred_at] | first)}' <<<"${body}")
 }
 
 if ((once)); then
   poll
-  exit 0
+  exit $?
 fi
 
 caffeinate -i -w $$ &
