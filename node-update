@@ -61,9 +61,21 @@ else
   exit 1
 fi
 
+if ! latest="$(nvm version-remote node)"; then
+  echo "node-update: failed to determine latest Node.js version" >&2
+  exit 1
+fi
+
 # Install the latest version of Node.js, migrating global packages from the
-# currently active version.
-nvm install node --reinstall-packages-from=current
+# currently active version. nvm install fails when the latest version is
+# already the active one, since it cannot reinstall packages from itself, so
+# skip the install in that case.
+if [ "${latest}" = "$(nvm current)" ]; then
+  echo "Node.js ${latest} is already installed and active"
+elif ! nvm install node --reinstall-packages-from=current; then
+  echo "node-update: nvm install failed" >&2
+  exit 1
+fi
 
 # Set the latest version as the default.
 nvm alias default node
