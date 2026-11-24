@@ -154,6 +154,35 @@ if [ -z "${access_token}" ]; then
   exit 1
 fi
 
+# Fetch a GitHub API URL into `body`, trying a failed transfer up to three
+# times. A transfer cut short (the Mac sleeping mid-run, a dropped connection)
+# fails here instead of handing jq a truncated body. An HTTP error (curl exit
+# 22) is GitHub's answer, so it is not retried; `body` then holds its error
+# object. curl's own --retry is not used: after a cut-off transfer it writes
+# the partial body and then the whole one to stdout.
+function fetch() {
+  local attempt status
+  for attempt in 1 2 3; do
+    body=$(curl -L --silent --show-error --fail-with-body \
+      --header @<(printf 'Authorization: Token %s\n' "${access_token}") "$1")
+    status=$?
+    if [ "${status}" -eq 0 ] || [ "${status}" -eq 22 ]; then
+      return "${status}"
+    fi
+    [ "${attempt}" -lt 3 ] && sleep $((attempt * 5))
+  done
+  return "${status}"
+}
+
+# Print GitHub's message from an error body in `body`, or say what the body is.
+function describe() {
+  local msg
+  if ! msg=$(printf '%s\n' "${body}" | jq -r 'if type == "object" then .message // "no message" else "a JSON \(type)" end' 2>/dev/null); then
+    msg="the response is not JSON"
+  fi
+  echo "${msg:-the response is empty}"
+}
+
 eval "$(ssh-agent -s)" >/dev/null 2>&1 &&
   ssh-add "${HOME}/.ssh/${identity_file}" >/dev/null 2>&1
 # The agent holds the decrypted key, so stop it on every exit path.
@@ -174,12 +203,14 @@ if [ -n "${user}" ]; then
   # authenticated-user endpoint /user/repos, which is scoped to the token's own
   # account and returns both public and private repositories.
   resource="user/repos"
-  list_params="affiliation=owner&sort=full_name"
+  list_params="affiliation=owner&sort=full_name&per_page=100"
   # /user/repos ignores ${user} and always returns the token owner's repos, so
   # verify the token belongs to the requested user before cloning.
-  authenticated_user=$(curl -L --silent \
-    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
-    "https://api.github.com/user" | jq -r '.login // empty')
+  if ! fetch "https://api.github.com/user"; then
+    echo "git-clone-gh: could not read the token's account: $(describe)" >&2
+    exit 1
+  fi
+  authenticated_user=$(printf '%s\n' "${body}" | jq -r '.login // empty' 2>/dev/null)
   if [ -z "${authenticated_user}" ]; then
     echo "git-clone-gh: could not authenticate with the provided token" >&2
     exit 1
@@ -191,7 +222,7 @@ if [ -n "${user}" ]; then
   fi
 elif [ -n "${org}" ]; then
   resource="orgs/${org}/repos"
-  list_params="type=all&sort=full_name"
+  list_params="type=all&sort=full_name&per_page=100"
   # Authenticate the lookup. An anonymous request shares a 60/hour limit per
   # IP, so back-to-back runs would report a 403 as a missing organization.
   status=$(curl -L --silent --output /dev/null --write-out "%{http_code}" -X GET \
@@ -222,19 +253,20 @@ else
   jq_filter='.[].ssh_url'
 fi
 
-# The GitHub API only returns 30 results. Therefore, increment page until no
-# results are returned.
+# The GitHub API returns at most 100 results a page. Therefore, increment page
+# until no results are returned.
 page=1
 ssh_urls=()
 while true; do
-  response=$(curl -L --silent -X GET \
-    --header @<(printf 'Authorization: Token %s\n' "${access_token}") \
-    "https://api.github.com/${resource}?${list_params}&page=${page}")
+  if ! fetch "https://api.github.com/${resource}?${list_params}&page=${page}"; then
+    echo "git-clone-gh: could not fetch page ${page} of ${resource}: $(describe)" >&2
+    exit 1
+  fi
+  response=${body}
 
-  # If the response is not an array, GitHub returned an error object.
-  if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
-    msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
-    echo "git-clone-gh: GitHub API error: ${msg}" >&2
+  # A body that is not a list is an error object, or not JSON at all.
+  if ! printf '%s\n' "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    echo "git-clone-gh: GitHub API error on page ${page} of ${resource}: $(describe)" >&2
     exit 1
   fi
 
