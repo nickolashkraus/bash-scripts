@@ -10,7 +10,10 @@
 #   config, linked worktrees, submodules, LFS objects or .git/info/exclude
 #   patterns. Then it is kept beside the new layout as REPO-worktree-tmp-PID
 #   and the script lists what it holds. A local user.name and user.email are
-#   copied to the bare repository, so they do not count.
+#   copied to the bare repository, so they do not count, and neither do
+#   ignored directories that an install or a build recreates: .venv, venv,
+#   node_modules, __pycache__, .pytest_cache, .ruff_cache, .mypy_cache and
+#   .tox, at any depth.
 #
 # USAGE
 #   git-worktree-init [OPTIONS] REPO
@@ -186,8 +189,15 @@ function held() (
     echo "unchecked: ${orig}"
     exit
   }
-  git status --porcelain --ignored | sed -n 's/^!! /ignored: /p' ||
-    echo "unchecked: ignored files"
+  # `matching` names the ignored directory itself, where the default mode
+  # reports only its untracked parent (pkg/ for pkg/__pycache__/).
+  git status --porcelain --ignored=matching | sed -n 's/^!! //p' |
+    awk -F/ '{
+      for (i = 1; i <= NF; i++)
+        if ($i ~ /^(\.venv|venv|node_modules|__pycache__|\.pytest_cache|\.ruff_cache|\.mypy_cache|\.tox)$/)
+          next
+      print "ignored: " $0
+    }' || echo "unchecked: ignored files"
   git stash list | sed 's/^/stash: /' || echo "unchecked: stash"
   git for-each-ref --format='%(refname) %(objectname)' refs/tags |
     while read -r ref sha; do
