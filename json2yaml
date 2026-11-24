@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # DESCRIPTION
-#   Convert JSON to YAML.
+#   Convert JSON to YAML. Keys are sorted unless --keep-order is given.
 #
 # USAGE
 #   json2yaml [OPTIONS] FILE
@@ -10,10 +10,12 @@
 #   FILE    Path to JSON file
 #
 # OPTIONS
-#   -h, --help    Show this help message
+#   -k, --keep-order    Keep the key order of the JSON file
+#   -h, --help          Show this help message
 #
 # EXAMPLES
-#   None
+#   json2yaml config.json
+#   json2yaml --keep-order config.json
 
 # Print usage information.
 function usage() {
@@ -23,15 +25,21 @@ function usage() {
   echo "  FILE    Path to JSON file"
   echo ""
   echo "Options:"
-  echo "  -h, --help    Show this help message"
+  echo "  -k, --keep-order    Keep the key order of the JSON file"
+  echo "  -h, --help          Show this help message"
   echo ""
 }
 
 file=""
+sort_keys="True"
 
 # Parse command line arguments.
 while [[ $# -gt 0 ]]; do
   case $1 in
+    -k | --keep-order)
+      sort_keys="False"
+      shift
+      ;;
     -h | --help)
       usage
       exit 0
@@ -42,9 +50,13 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
+      if [ -n "${file}" ]; then
+        echo "json2yaml: unknown argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
       file="$1"
       shift
-      break
       ;;
   esac
 done
@@ -71,7 +83,7 @@ import sys;
 import json;
 import yaml;
 
-yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)
+yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False, sort_keys=${sort_keys})
 
 END
 )
