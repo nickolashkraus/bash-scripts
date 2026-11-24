@@ -60,6 +60,8 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 
 # The Auth0 API paginates, so fetch pages until every client is read.
+# `is_first_party=false` asks for third-party applications only, the kind
+# Dynamic Client Registration creates.
 page=0
 per_page=100
 all_clients="[]"
@@ -68,7 +70,7 @@ while true; do
   # The header goes through a pipe so the token stays out of curl's argv.
   if ! response=$(printf 'Authorization: Bearer %s\n' "${TOKEN}" |
     curl -L --silent --show-error --fail -X GET --header @- \
-      "https://${auth0_domain}/api/v2/clients?page=${page}&per_page=${per_page}&include_totals=true"); then
+      "https://${auth0_domain}/api/v2/clients?is_first_party=false&page=${page}&per_page=${per_page}&include_totals=true"); then
     echo "auth0-count-apps: could not fetch applications; check that TOKEN is valid" >&2
     exit 1
   fi
@@ -86,9 +88,12 @@ while true; do
   ((page++))
 done
 
-# Both matches are case-insensitive, on the application name.
-chatgpt_count=$(echo "${all_clients}" | jq '[.[] | select(.name | test("ChatGPT"; "i"))] | length')
-claude_count=$(echo "${all_clients}" | jq '[.[] | select(.name | test("Claude"; "i"))] | length')
+# Both matches are case-insensitive, on the application name. A client
+# marked first-party is left out even if the filter above was not applied.
+chatgpt_count=$(echo "${all_clients}" |
+  jq '[.[] | select(.is_first_party != true and (.name | test("ChatGPT"; "i")))] | length')
+claude_count=$(echo "${all_clients}" |
+  jq '[.[] | select(.is_first_party != true and (.name | test("Claude"; "i")))] | length')
 
 echo "Auth0 Third-Party Application Count"
 echo "Domain: ${auth0_domain}"
