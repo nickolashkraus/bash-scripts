@@ -168,7 +168,9 @@ for i, r in enumerate(rows, 1):
     flags = "resolved" if resolved == "true" else "open"
     if outdated == "true":
         flags += ",outdated"
-    if me in participants.split(",")[1:]:
+    # The same rule as the `replied` selector: you answered a thread someone
+    # else opened.
+    if author != me and me in participants.split(",")[1:]:
         flags += ",replied"
     title = title.lstrip("# ").strip()
     if len(title) > 78:
