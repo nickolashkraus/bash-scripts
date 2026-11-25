@@ -3,6 +3,9 @@
 # DESCRIPTION
 #   Convert JSON to YAML. Keys are sorted unless --keep-order is given.
 #
+#   Requires uv, which supplies PyYAML in a throwaway environment, so PyYAML
+#   need not be installed.
+#
 # USAGE
 #   json2yaml [OPTIONS] FILE
 #
@@ -88,12 +91,13 @@ yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False, sort_
 END
 )
 
-if ! python -c 'import yaml' 2>/dev/null; then
-  echo "json2yaml: PyYAML is not installed" >&2
+if ! command -v uv >/dev/null 2>&1; then
+  echo "json2yaml: uv is not installed" >&2
   exit 1
 fi
 
 # Convert before writing, so a failed conversion leaves an existing output
 # file untouched. printf ends the output with a newline.
-output=$(python -c "${python_script}" <"${file}") || exit
+# --no-project keeps a pyproject.toml in the current directory out of it.
+output=$(uv run --quiet --no-project --with pyyaml python -c "${python_script}" <"${file}") || exit
 printf '%s\n' "${output}" >"${filename}.yaml"
