@@ -24,6 +24,12 @@
 #   inherit no shell env) and reads FH_GITHUB_TOKEN from the Login Keychain
 #   rather than an interactive shell export.
 #
+#   With the lid closed on battery the Mac sleeps within seconds whatever
+#   assertion is held, and the run only advances in short dark wakes, so every
+#   step but worktree-links is skipped and reported as skipped, not failed.
+#   --force runs them anyway. If the lid or the power source cannot be read,
+#   every step runs.
+#
 # USAGE
 #   system-update [OPTIONS]
 #
@@ -31,10 +37,12 @@
 #   None
 #
 # OPTIONS
+#   --force       Run every step, even with the lid closed on battery
 #   -h, --help    Show this help message
 #
 # EXAMPLES
 #   system-update
+#   system-update --force
 #   launchctl kickstart -k gui/$(id -u)/io.nickolaskraus.system-update
 
 set -uo pipefail
@@ -53,13 +61,26 @@ export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_INSTALL_CLEANUP=1
 
 failures=0
+skipped=0
+skip_network=false
 
 function usage() {
   echo "usage: system-update [OPTIONS]"
   echo ""
   echo "Options:"
+  echo "  --force       Run every step, even with the lid closed on battery"
   echo "  -h, --help    Show this help message"
   echo ""
+}
+
+# Succeed only when the lid is closed and the Mac draws from its battery.
+# A check that cannot run, or prints something else, counts as no.
+function lid_closed_on_battery() {
+  local lid power
+  lid=$(ioreg -r -k AppleClamshellState -d 1 2>/dev/null) || return 1
+  power=$(pmset -g batt 2>/dev/null) || return 1
+  [[ ${lid} == *'"AppleClamshellState" = Yes'* ]] &&
+    [[ ${power} == *"Now drawing from 'Battery Power'"* ]]
 }
 
 # Run a labeled step. Logs a header and the outcome; a non-zero exit is
@@ -80,6 +101,17 @@ function run_step() {
     echo -e "${red}==> ${label}: FAILED (exit ${status})${reset}"
     ((failures++))
   fi
+}
+
+# Run a step that needs the network, or report it skipped.
+function network_step() {
+  if [ "${skip_network}" = true ]; then
+    echo ""
+    echo -e "${green}==> $1: SKIPPED (lid closed on battery)${reset}"
+    ((skipped++))
+    return
+  fi
+  run_step "$@"
 }
 
 # shellcheck disable=SC2329
@@ -142,61 +174,82 @@ function refresh_worktree_links() {
   "${HOME}/nickolashkraus/bash-scripts/master/worktree-links" --quiet
 }
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    -*)
-      echo "system-update: unknown option '$1'" >&2
-      usage >&2
-      exit 1
-      ;;
-    *)
-      echo "system-update: unknown argument '$1'" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-done
+function main() {
+  local force=false
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --force)
+        force=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      -*)
+        echo "system-update: unknown option '$1'" >&2
+        usage >&2
+        exit 1
+        ;;
+      *)
+        echo "system-update: unknown argument '$1'" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
 
-echo "=============================================================="
-echo "system-update: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "=============================================================="
+  echo "=============================================================="
+  echo "system-update: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "=============================================================="
 
-# fh-sync requires FH_GITHUB_TOKEN. In an unattended job it cannot come from an
-# interactive shell export, so read it from the Login Keychain.
-if [ -z "${FH_GITHUB_TOKEN:-}" ]; then
-  FH_GITHUB_TOKEN="$(security find-generic-password -s fh-github-token -a function-health -w 2>/dev/null)"
-  export FH_GITHUB_TOKEN
-fi
+  if [ "${force}" = false ] && lid_closed_on_battery; then
+    skip_network=true
+    echo "system-update: the lid is closed on battery; skipping every step but worktree-links (--force runs them)"
+  fi
 
-run_step "vim plugins" update_vim
-run_step "Homebrew" update_brew
-run_step "Python tools (pipx, uv)" update_python_tools
+  # fh-sync requires FH_GITHUB_TOKEN. In an unattended job it cannot come from
+  # an interactive shell export, so read it from the Login Keychain.
+  if [ "${skip_network}" = false ] && [ -z "${FH_GITHUB_TOKEN:-}" ]; then
+    FH_GITHUB_TOKEN="$(security find-generic-password -s fh-github-token -a function-health -w 2>/dev/null)"
+    export FH_GITHUB_TOKEN
+  fi
 
-if [ -n "${FH_GITHUB_TOKEN:-}" ]; then
-  run_step "fh-sync Function-Health" sync_org "Function-Health"
-  run_step "fh-sync Function-Health-Terraform-Modules" sync_org "Function-Health-Terraform-Modules"
-else
+  network_step "vim plugins" update_vim
+  network_step "Homebrew" update_brew
+  network_step "Python tools (pipx, uv)" update_python_tools
+
+  if [ "${skip_network}" = true ] || [ -n "${FH_GITHUB_TOKEN:-}" ]; then
+    network_step "fh-sync Function-Health" sync_org "Function-Health"
+    network_step "fh-sync Function-Health-Terraform-Modules" sync_org "Function-Health-Terraform-Modules"
+  else
+    echo ""
+    echo -e "${red}==> fh-sync: SKIPPED (FH_GITHUB_TOKEN not found in Keychain)${reset}"
+    ((failures++))
+  fi
+
+  # With no pull, the installs have no new revision to act on.
+  network_step "git-pull ~/nickolashkraus" pull_personal
+  network_step "bash-scripts install" install_bash_scripts
+  network_step "dotfiles install" install_dotfiles
+  run_step "worktree-links" refresh_worktree_links
+
+  local summary="complete, ${failures} failure(s)"
+  [ "${failures}" -eq 0 ] && summary="complete, 0 failures"
+  [ "${skipped}" -gt 0 ] && summary+=", ${skipped} skipped (lid closed on battery)"
   echo ""
-  echo -e "${red}==> fh-sync: SKIPPED (FH_GITHUB_TOKEN not found in Keychain)${reset}"
-  ((failures++))
+  echo "=============================================================="
+  if [ "${failures}" -eq 0 ]; then
+    echo -e "${green}system-update: ${summary}${reset}"
+  else
+    echo -e "${red}system-update: ${summary}${reset}"
+  fi
+  echo "=============================================================="
+
+  exit "${failures}"
+}
+
+# Run only when executed, so a test can source the functions and stub them.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
 fi
-
-run_step "git-pull ~/nickolashkraus" pull_personal
-run_step "bash-scripts install" install_bash_scripts
-run_step "dotfiles install" install_dotfiles
-run_step "worktree-links" refresh_worktree_links
-
-echo ""
-echo "=============================================================="
-if [ "${failures}" -eq 0 ]; then
-  echo -e "${green}system-update: complete, 0 failures${reset}"
-else
-  echo -e "${red}system-update: complete, ${failures} failure(s)${reset}"
-fi
-echo "=============================================================="
-
-exit "${failures}"
